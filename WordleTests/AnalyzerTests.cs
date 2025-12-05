@@ -11,10 +11,10 @@ namespace WordleTests
 	[TestClass]
 	public class AnalyzerTests
 	{
-		List<(char, short)> guess1 = new List<(char, short)> { ('s', 0), ('a', 1), ('i', 0), ('n', 0), ('t', 1) };
-		List<(char, short)> guess2 = new List<(char, short)> { ('t', 1), ('r', 0), ('a', 2), ('p', 0), ('e', 1) };
-		List<(char, short)> guess3 = new List<(char, short)> { ('d', 0), ('e', 2), ('a', 2), ('t', 2), ('h', 0) };
-		List<(char, short)> guess4 = new List<(char, short)> { ('m', 2), ('e', 2), ('a', 2), ('t', 2), ('y', 2) };
+		List<(char, byte)> guess1 = new List<(char, byte)> { ('s', 0), ('a', 1), ('i', 0), ('n', 0), ('t', 1) };
+		List<(char, byte)> guess2 = new List<(char, byte)> { ('t', 1), ('r', 0), ('a', 2), ('p', 0), ('e', 1) };
+		List<(char, byte)> guess3 = new List<(char, byte)> { ('d', 0), ('e', 2), ('a', 2), ('t', 2), ('h', 0) };
+		List<(char, byte)> guess4 = new List<(char, byte)> { ('m', 2), ('e', 2), ('a', 2), ('t', 2), ('y', 2) };
 
 		[TestMethod]
 		public void CreateRegexTest()
@@ -45,8 +45,8 @@ namespace WordleTests
 			an.UpdateLetters(guess1);
 			List<char> bannedLetters = new List<char>				{ 's', 'i', 'n' };
 			List<char> reqLetters = new List<char>					{ 'a', 't' };
-			List<(char, short)> bannedPos = new List<(char, short)> { ('a', 1), ('t', 4) };
-			List<(char, short)> reqPos = new List<(char, short)>	{ };
+			List<(char, byte)> bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4) };
+			List<(char, byte)> reqPos = new List<(char, byte)>	{ };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
@@ -55,8 +55,8 @@ namespace WordleTests
 			an.UpdateLetters(guess2);
 			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p' };
 			reqLetters = new List<char>			{ 'a', 't', 'e' };
-			bannedPos = new List<(char, short)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, short)>	{ ('a', 2) };
+			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
+			reqPos = new List<(char, byte)>	{ ('a', 2) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
@@ -65,8 +65,8 @@ namespace WordleTests
 			an.UpdateLetters(guess3);
 			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p', 'd', 'h' };
 			reqLetters = new List<char>			{ 'a', 't', 'e' };
-			bannedPos = new List<(char, short)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, short)>	{ ('a', 2), ('e', 1), ('t', 3) };
+			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
+			reqPos = new List<(char, byte)>	{ ('a', 2), ('e', 1), ('t', 3) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
@@ -74,22 +74,22 @@ namespace WordleTests
 
 			an.UpdateLetters(guess4);
 			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p', 'd', 'h' };
-			reqLetters = new List<char>			{ 'a', 't', 'e' };
-			bannedPos = new List<(char, short)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, short)>	{ ('a', 2), ('e', 1), ('t', 3), ('m', 0), ('y', 4) };
+			reqLetters = new List<char>			{ 'a', 't', 'e', 'm', 'y' };
+			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
+			reqPos = new List<(char, byte)>	{ ('a', 2), ('e', 1), ('t', 3), ('m', 0), ('y', 4) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqPos, reqPos));
 			an.Dispose();
 
-			List<(char, short)> feedback = new List<(char, short)> { ('s', 0), ('a', 1), ('r', 0), ('e', 1), ('e', 1) };
+			List<(char, byte)> feedback = new List<(char, byte)> { ('s', 0), ('a', 1), ('r', 0), ('e', 1), ('e', 1) };
 			an = new Analyzer(5);
 			an.UpdateLetters(feedback);
 			bannedLetters = new List<char> { 's', 'r',};
 			reqLetters = new List<char> { 'a', 'e' };
-			bannedPos = new List<(char, short)> { ('a', 1), ('e', 3), ('e', 4) };
-			reqPos = new List<(char, short)> { };
+			bannedPos = new List<(char, byte)> { ('a', 1), ('e', 3), ('e', 4) };
+			reqPos = new List<(char, byte)> { };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
@@ -125,7 +125,7 @@ namespace WordleTests
 		{
 			Analyzer an = new Analyzer(5);
 
-			var run1 = an.Run(new List<(char, short)> { ('s', 2), ('a', 0), ('i', 2), ('n', 2), ('t', 2) });
+			var run1 = an.Run(new List<(char, byte)> { ('s', 2), ('a', 0), ('i', 2), ('n', 2), ('t', 2) });
 			var run2 = an.Run(null);
 
 			Assert.AreEqual(run1.Item2.Count, run2.Item2.Count);
@@ -137,7 +137,7 @@ namespace WordleTests
 		public void RemReqPosTest()
 		{
 			Analyzer an = new Analyzer(5);
-			an.reqPos = new List<(char, short)> { ('e', 1), ('a', 2), ('t', 3) };
+			an.reqPos = new List<(char, byte)> { ('e', 1), ('a', 2), ('t', 3) };
 			Assert.AreEqual(15898, an.RemReqPos());
 			an.Dispose();
 		}
@@ -165,12 +165,12 @@ namespace WordleTests
 		public void RemInvalTest()
 		{
 			Analyzer an = new Analyzer(5);
-			an.bannedPos = new List<(char, short)> { ('t', 0), ('a', 1), ('t', 4), ('e', 4) };
+			an.bannedPos = new List<(char, byte)> { ('t', 0), ('a', 1), ('t', 4), ('e', 4) };
 			Assert.AreEqual(6045, an.RemInvalPos());
 			an.Dispose();
 
 			an = new Analyzer(5);
-			an.bannedPos = new List<(char, short)> { ('a', 1), ('e', 3), ('e', 4) };
+			an.bannedPos = new List<(char, byte)> { ('a', 1), ('e', 3), ('e', 4) };
 			Assert.AreEqual(6362, an.RemInvalPos());
 			an.Dispose();
 		}
@@ -228,9 +228,9 @@ namespace WordleTests
 		public void UvulaTest()
 		{
 			Analyzer analyzer = new Analyzer(5);
-			List<(char, short)> word1 = new List<(char, short)> { ('s', 0), ('a', 1), ('i', 0), ('n', 0), ('t', 0) };
-			List<(char, short)> word2 = new List<(char, short)> { ('f', 0), ('l', 1), ('o', 0), ('u', 1), ('r', 0) };
-			List<(char, short)> word3 = new List<(char, short)> { ('b', 0), ('u', 1), ('l', 0), ('l', 2), ('a', 2) };
+			List<(char, byte)> word1 = new List<(char, byte)> { ('s', 0), ('a', 1), ('i', 0), ('n', 0), ('t', 0) };
+			List<(char, byte)> word2 = new List<(char, byte)> { ('f', 0), ('l', 1), ('o', 0), ('u', 1), ('r', 0) };
+			List<(char, byte)> word3 = new List<(char, byte)> { ('b', 0), ('u', 1), ('l', 0), ('l', 2), ('a', 2) };
 			analyzer.Run(word1);
 			analyzer.Run(word2);
 			analyzer.Run(word3);

@@ -11,9 +11,9 @@ namespace Word_Analyzer
 {
 	public static class WordleProcessor
 	{
-		public static List<(char, short)> Process(string guess, string answer)
+		public static List<(char, byte)> Process(string guess, string answer)
 		{
-			List<(char letter, short state)> results = new List<(char letter, short state)>();
+			List<(char letter, byte state)> results = new List<(char letter, byte state)>();
 			for (int i = 0; i < answer.Length; i++)
 			{
 				if (answer[i] == guess[i])

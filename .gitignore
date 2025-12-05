@@ -361,13 +361,3 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-/Word Analyzer/Properties/AssemblyInfo.cs
-*.csproj
-/Wordle Helper .Net Framework/Properties
-/WordleTests/Properties
-*.sln
-/Word Analyzer/bin/Release
-/Wordle Helper .Net Framework/bin/Release/Word Analyzer.exe
-/Wordle Helper .Net Framework/bin/Release/Word Analyzer.exe.config
-/Word Analyzer.exe
-/Word Analyzer.exe.config

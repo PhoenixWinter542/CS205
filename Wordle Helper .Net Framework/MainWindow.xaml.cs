@@ -408,14 +408,14 @@ namespace Wordle_Helper
 		/// No buttons in the row can have null content
 		/// </summary>
 		/// <returns>The arguments for Analyzer.Run(args)</returns>
-		private List<(char, short)> GetRunArgs()
+		private List<(char, byte)> GetRunArgs()
 		{
-			List<(char, short)> runArgs = new List<(char, short)>();
+			List<(char, byte)> runArgs = new List<(char, byte)>();
 
 			int row = position.row;
 			for (int col = 0; col < maxCol; col++)
 			{
-				short state = 0;
+				byte state = 0;
 				switch (states[row][col])
 				{
 					case 1: //Correct Pos

@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Collections;
 using System.Configuration;
+using System.Text.RegularExpressions;
 
 namespace Word_Analyzer
 {
@@ -18,19 +19,19 @@ namespace Word_Analyzer
 		SqlConnection conn;
 		SqlTransaction transaction;
 		SqlCommand cmd;
-		short length;
+		byte length;
 
 		public readonly List<char> fullAlphabet;
 		public List<char> bannedLetters;
 		public List<char> reqLetters;
-		public List<(char, short)> bannedPos;
-		public List<(char letter, short pos)> reqPos;
+		public List<(char, byte)> bannedPos;
+		public List<(char letter, byte pos)> reqPos;
 
-		public Analyzer(short length) : this(length, ConfigurationManager.ConnectionStrings["connection"].ConnectionString) { }
+		public Analyzer(byte length) : this(length, ConfigurationManager.ConnectionStrings["connection"].ConnectionString) { }
 
-		public Analyzer(short length, string connection) : this(length, connection, ConfigurationManager.ConnectionStrings["table"].ConnectionString, ConfigurationManager.ConnectionStrings["column"].ConnectionString) { }
+		public Analyzer(byte length, string connection) : this(length, connection, ConfigurationManager.ConnectionStrings["table"].ConnectionString, ConfigurationManager.ConnectionStrings["column"].ConnectionString) { }
 
-		public Analyzer(short length, string connection, string table, string column)
+		public Analyzer(byte length, string connection, string table, string column)
 		{
 			this.length = length;
 			connectionString= connection;
@@ -42,10 +43,62 @@ namespace Word_Analyzer
 				throw (new Exception("Connection Failed"));
 			fullAlphabet = new List<char>() { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 			bannedLetters = new List<char>();
-			bannedPos = new List<(char, short)>();
-			reqPos = new List<(char, short)>();
+			bannedPos = new List<(char, byte)>();
+			reqPos = new List<(char, byte)>();
 			reqLetters = new List<char>();
 		}
+
+		//Sql Command Generators
+
+		private string getRemReqPosCommand(byte charPos, char letter)
+		{
+			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE " + CreateRegex(charPos, letter) + ";";
+		}
+
+		private string getRemReqNPosCommand(char letter)
+		{
+			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '%" + letter + "%';";
+		}
+
+		private string getRemBannedCommand(char letter)
+		{
+			//Find any required positions
+			var reqs = reqPos.Where(x => x.letter == letter).ToList();
+			reqs.Sort((x, y) => x.pos.CompareTo(y.pos));
+			int pos = 0;
+			string regex = "";
+			for (int i = 0; i < length; i++)
+			{
+				if (pos >= reqs.Count || i != reqs[pos].pos)
+				{
+					regex += "[^" + letter + "]";
+				}
+				else
+				{
+					regex += letter;
+					pos++;
+				}
+			}
+			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '" + regex + "';";
+		}
+
+		private string getRemInvalPosCommand(byte charPos, char letter)
+		{
+			return "DELETE FROM " + tableString + " WHERE " + columnString + " LIKE " + CreateRegex(charPos, letter) + ";";
+		}
+
+		private string getComputePosCommand(byte charPos, char letter)
+		{
+			return "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like " + CreateRegex(charPos, letter) + ";";
+		}
+
+		private string getComputeIncCommand(char letter)
+		{
+			return  "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like '%" + letter + "%';";
+		}
+
+
+		//General Functions
 
 		public bool startConnection()
 		{
@@ -133,13 +186,13 @@ namespace Word_Analyzer
 				reqLetters.Add(letter);
 		}
 
-		public void UpdateLetters(List<(char, short)> feedback)
+		public void UpdateLetters(List<(char, byte)> feedback)
 		{
 			if (null == feedback)
-				feedback = new List<(char, short)>();
-			for (short i = 0; i < feedback.Count; i++)
+				feedback = new List<(char, byte)>();
+			for (byte i = 0; i < feedback.Count; i++)
 			{
-				(char letter, short status) pos = feedback[i];
+				(char letter, byte status) pos = feedback[i];
 				switch (pos.status)
 				{
 					case 0:
@@ -182,9 +235,9 @@ namespace Word_Analyzer
 		public int RemReqPos()
 		{
 			int sum = 0;
-			foreach ((char letter, short pos) in reqPos)
+			foreach ((char letter, byte pos) in reqPos)
 			{
-				cmd.CommandText = "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE " + CreateRegex(pos, letter) + ";";
+				cmd.CommandText = getRemReqPosCommand(pos, letter);
 				sum += cmd.ExecuteNonQuery();
 			}
 			return sum;
@@ -243,7 +296,7 @@ namespace Word_Analyzer
 		public int RemInvalPos()
 		{
 			int sum = 0;
-			foreach ((char letter, short pos) in bannedPos)
+			foreach ((char letter, byte pos) in bannedPos)
 			{
 				cmd.CommandText = "DELETE FROM " + tableString + " WHERE " + columnString + " LIKE " + CreateRegex(pos, letter) + ";";
 				sum += cmd.ExecuteNonQuery();
@@ -255,12 +308,12 @@ namespace Word_Analyzer
 		public List<List<(char, int)>> ComputePos(List<char> alphabet)
 		{
 			List<List<(char, int)>> results = new List<List<(char, int)>>();
-			for (int i = 0; i < length; i++)
+			for (byte i = 0; i < length; i++)
 			{
 				List<(char, int)> column = new List<(char, int)>();
 				foreach (char letter in alphabet)
 				{
-					cmd.CommandText = "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like " + CreateRegex(i, letter) + ";";
+					cmd.CommandText = getComputePosCommand(i, letter);
 					SqlDataReader reader = cmd.ExecuteReader();
 					reader.Read();
 					column.Add((letter, reader.GetInt32(0)));
@@ -278,7 +331,7 @@ namespace Word_Analyzer
 			List<(char, int)> results = new List<(char, int)>();
 			foreach (char letter in alphabet)
 			{
-				cmd.CommandText = "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like '%" + letter + "%';";
+				cmd.CommandText = getComputeIncCommand(letter);
 				SqlDataReader reader = cmd.ExecuteReader();
 				reader.Read();
 				results.Add((letter, reader.GetInt32(0)));
@@ -288,12 +341,28 @@ namespace Word_Analyzer
 			return results;
 		}
 
+		public bool ProcessTable(string table, List<char> alphabet)
+		{
+			try
+			{
+				foreach (char letter in fullAlphabet)
+				{
+
+				}
+				return true;
+			}
+			catch
+			{
+				return false;
+			}
+		}
+
 		/// <summary>
 		/// 0 - char not in word	|	1 - char in word, not in position	|	2 - char in word, in correct position
 		/// </summary>
 		/// <param name="feedback"></param>
 		/// <returns></returns>
-		public (List<List<(char, int)>>, List<(char, int)>) Run(List<(char, short)> feedback)
+		public (List<List<(char, int)>>, List<(char, int)>) Run(List<(char, byte)> feedback)
 		{
 			startConnection();
 

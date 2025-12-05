@@ -1,0 +1,54 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.11.35219.272
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Word Analyzer", "Word Analyzer\Word Analyzer.csproj", "{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "WordleTests", "WordleTests\WordleTests.csproj", "{09CED2E9-6D83-4B83-9F18-5507266803B8}"
+	ProjectSection(ProjectDependencies) = postProject
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35} = {F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}
+	EndProjectSection
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wordle Helper .Net Framework", "Wordle Helper .Net Framework\Wordle Helper .Net Framework.csproj", "{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Debug|x86 = Debug|x86
+		Release|Any CPU = Release|Any CPU
+		Release|x86 = Release|x86
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Debug|x86.ActiveCfg = Debug|x86
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Debug|x86.Build.0 = Debug|x86
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Release|Any CPU.Build.0 = Release|Any CPU
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Release|x86.ActiveCfg = Release|x86
+		{F97C0EB0-7A78-4B9B-9DAA-7DC0E569FD35}.Release|x86.Build.0 = Release|x86
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Debug|x86.Build.0 = Debug|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Release|x86.ActiveCfg = Release|Any CPU
+		{09CED2E9-6D83-4B83-9F18-5507266803B8}.Release|x86.Build.0 = Release|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Debug|x86.Build.0 = Debug|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Release|x86.ActiveCfg = Release|Any CPU
+		{3ADEA86B-039D-41D3-8C7E-1515FC16E19B}.Release|x86.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {6D597E65-0A33-43CE-AB75-BF9CC388B65A}
+	EndGlobalSection
+EndGlobal

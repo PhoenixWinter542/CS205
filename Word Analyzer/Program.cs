@@ -20,7 +20,7 @@ namespace Word_Analyzer
 			Search search = new Search(results);
 			Console.WriteLine(search.Run());
 
-			List<(char, short)> feedback = new List<(char, short)> { ('s', 0), ('a', 1), ('n', 0), ('e', 1), ('s', 0) };
+			List<(char, byte)> feedback = new List<(char, byte)> { ('s', 0), ('a', 1), ('n', 0), ('e', 1), ('s', 0) };
 			results = analyzer.Run(feedback);
 			search = new Search(results);
 			Console.WriteLine(search.Run());
