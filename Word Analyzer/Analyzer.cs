@@ -8,18 +8,123 @@ using System.Threading.Tasks;
 using System.Collections;
 using System.Configuration;
 using System.Text.RegularExpressions;
+using System.CodeDom.Compiler;
+using System.Data.Common;
+using System.Net.Mail;
+
+/*
+		 * SQL calculation steps
+		 
+			* startup
+				
+				* check for word table, fail if not present
+				* Create letter table if doesn't exist
+				* compute letter table for full word set if doesn't exist
+				* compute word scores for full word set if doesn't exist
+				* clone word table
+		  
+
+			* state info
+			
+				* Delete state table if exists
+				* Create state table
+				* Create letter table
+				* compute letter table for current word set 
+				* compute word scores for full word set
+		 
+
+			* cleanup
+			
+				* delete current word set word table
+				* delete current word set letter table
+		 
+
+		 * Subdetails
+		 
+			* letter tables
+			
+				* column for # of words with letter included
+				* column for each position in the word for # of words with this letter in this position
+
+
+			* word tables
+			
+				* column for words
+				* column for overall word score
+
+
+			* compute letter table
+			
+				* compute letters included
+
+					* count(*) WHERE letter IN words
+
+
+				* compute letter position included
+				
+					* count(*) WHERE word LIKE [any][letter in position][any]
+			
+			* compute word scores
+			
+			
+				* Create tmp table with columns letter and score
+				* initialize all to 0
+					
+					
+					* Get score for letters in word
+						
+						* WHERE letter IN word, word.score += letterscore * scoreweight		//scoreweight allows us to prioritize the different scoring elements (included, included at pos, etc) differently
+						
+							* get the letterscores for the current word
+							
+								* Sort tmp by score
+								* score *= scoreweight		//allows us to prioritize the second most common letter differently than the third most common etc.
+									
+									* create the list of scores
+									
+										* TRUNCATE TABLE tmp	//clear data from tmp
+										* WHILE < length of words  //constant
+										
+											* add SELECT letter, letterscore FROM letterscore WHERE currentword[i] == letter
+						
+					* Get score for letters in word at given position 
+					
+						WHERE word[pos] == letter, word.score += letterScore * scoreweight
+				
+				* delete tmp table
+
+*/
 
 namespace Word_Analyzer
 {
+	public struct Weights
+	{
+		/// <summary>
+		/// These weights will be multiplied with the letterInc scores in descending order of the letter scores
+		/// eg. incWeights[0] will apply to the letter with the highest score, incWeights[1] will apply to the letter with the second highest score, and so on
+		/// if a word contains a letter twice, this letter will be included in the scores twice and take up two neighboring positions
+		/// </summary>
+		public List<double> incAny;
+
+		/// <summary>
+		/// these weights will be multiplied to the score of the letter in the relevant position
+		/// </summary>
+		public List<double> incPos;
+	}
+
 	public class Analyzer : IDisposable
 	{
+
 		public readonly string connectionString;
 		public readonly string tableString;
 		public readonly string columnString;
+		public readonly string stateWordTable;
+		public readonly string stateLetterTable;
 		SqlConnection conn;
 		SqlTransaction transaction;
 		SqlCommand cmd;
 		byte length;
+		Weights weights;
 
 		public readonly List<char> fullAlphabet;
 		public List<char> bannedLetters;
@@ -27,40 +132,96 @@ namespace Word_Analyzer
 		public List<(char, byte)> bannedPos;
 		public List<(char letter, byte pos)> reqPos;
 
+		//Added for tests to use, no internal purpose
+		public SqlDataReader getReader(string query)
+		{
+			cmd.CommandText = query;
+			return cmd.ExecuteReader();
+		}
+
 		public Analyzer(byte length) : this(length, ConfigurationManager.ConnectionStrings["connection"].ConnectionString) { }
 
 		public Analyzer(byte length, string connection) : this(length, connection, ConfigurationManager.ConnectionStrings["table"].ConnectionString, ConfigurationManager.ConnectionStrings["column"].ConnectionString) { }
+		
+		public Analyzer(byte length, string connection, string table, string column) : this(length, connection, table, column, ConfigurationManager.ConnectionStrings["tmpTablesRootName"].ConnectionString) { }
 
-		public Analyzer(byte length, string connection, string table, string column)
+		public Analyzer(byte length, string connection, string table, string column, string tmpRootName) : this(length, connection, table, column, tmpRootName, new Weights()) { }
+
+		public Analyzer(byte length, string connection, string table, string column, string tmpRootName, Weights weights)
 		{
 			this.length = length;
-			connectionString= connection;
+			connectionString = connection;
 			tableString = table;
 			columnString = column;
+			stateWordTable = tmpRootName + "WordTable";
+			stateLetterTable = tmpRootName + "LetterTable";
 
 			conn = new SqlConnection(connectionString);
-			if (false == startConnection() || false == TestConnection())
+			if (false == StartConnection() || false == TestConnection())
 				throw (new Exception("Connection Failed"));
 			fullAlphabet = new List<char>() { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 			bannedLetters = new List<char>();
 			bannedPos = new List<(char, byte)>();
 			reqPos = new List<(char, byte)>();
 			reqLetters = new List<char>();
+
+			if (null == weights.incAny)
+				weights.incAny = new List<double>();
+			if(null == weights.incPos)
+				weights.incPos = new List<double>();
+
+			if (weights.incAny.Count < length)
+			{
+				weights.incAny.Clear();
+				for(int i = 0; i < length; i++)
+				{
+					weights.incAny.Add(0);
+				}
+			}
+			if (weights.incPos.Count < length)
+			{
+				weights.incPos.Clear();
+				for (int i = 0; i < length; i++)
+				{
+					weights.incPos.Add(0);
+				}
+			}
+			this.weights = weights;
+
+			//CreateLetterTable(fullAlphabet, tableString);
+			//ProcessWordTable(tableString);
+			//CreateWordTable();
 		}
+
+		private int GetIntFromCommand(int pos)
+		{
+			SqlDataReader reader = cmd.ExecuteReader();
+			reader.Read();
+			int result = reader.GetInt32(pos);
+			reader.Close();
+			return result;
+		}
+
 
 		//Sql Command Generators
 
-		private string getRemReqPosCommand(byte charPos, char letter)
+		private string GetRemReqPosCommand(byte charPos, char letter)
 		{
-			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE " + CreateRegex(charPos, letter) + ";";
+			string command = 
+				"\nDELETE FROM " + tableString + 
+				"\nWHERE " + columnString + " NOT LIKE " + CreateRegex(charPos, letter) + ";\n";
+			return command;
 		}
 
-		private string getRemReqNPosCommand(char letter)
+		private string GetRemReqNPosCommand(char letter)
 		{
-			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '%" + letter + "%';";
+			string command =
+				"\nDELETE FROM " + tableString + 
+				"\nWHERE " + columnString + " NOT LIKE '%" + letter + "%';\n";
+			return command;
 		}
 
-		private string getRemBannedCommand(char letter)
+		private string GetRemBannedCommand(char letter)
 		{
 			//Find any required positions
 			var reqs = reqPos.Where(x => x.letter == letter).ToList();
@@ -79,28 +240,42 @@ namespace Word_Analyzer
 					pos++;
 				}
 			}
-			return "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '" + regex + "';";
+			string command =
+				"\nDELETE FROM " + tableString + 
+				"\nWHERE " + columnString + " NOT LIKE '" + regex + "';\n";
+			return command;
 		}
 
-		private string getRemInvalPosCommand(byte charPos, char letter)
+		private string GetRemInvalPosCommand(byte charPos, char letter)
 		{
-			return "DELETE FROM " + tableString + " WHERE " + columnString + " LIKE " + CreateRegex(charPos, letter) + ";";
+			string command =
+				"\nDELETE FROM " + tableString + 
+				"\nWHERE " + columnString + " LIKE " + CreateRegex(charPos, letter) + ";\n";
+			return command;
 		}
 
-		private string getComputePosCommand(byte charPos, char letter)
+		private string GetComputePosCommand(byte charPos, char letter, string table)
 		{
-			return "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like " + CreateRegex(charPos, letter) + ";";
+			string command = 
+				"\nSELECT count(*)" +
+				"\nFROM " + table + 
+				"\nWHERE " + columnString + " like " + CreateRegex(charPos, letter) + ";\n";
+			return command;
 		}
 
-		private string getComputeIncCommand(char letter)
+		private string GetComputeIncCommand(char letter, string table)
 		{
-			return  "SELECT count(*) FROM " + tableString + " WHERE " + columnString + " like '%" + letter + "%';";
+			string command =
+				"\nSELECT count(*)" +
+				"\nFROM " + table + 
+				"\nWHERE " + columnString + " like '%" + letter + "%';\n";
+			return command;
 		}
 
 
 		//General Functions
 
-		public bool startConnection()
+		public bool StartConnection()
 		{
 			try
 			{
@@ -118,7 +293,7 @@ namespace Word_Analyzer
 			}
 		}
 
-		public void endConnection()
+		public void EndConnection()
 		{
 			if (conn.State == ConnectionState.Closed)
 				return;
@@ -138,10 +313,7 @@ namespace Word_Analyzer
 				}
 
 				cmd.CommandText = "SELECT count(" + columnString + ") FROM " + tableString + ";";
-				SqlDataReader reader = cmd.ExecuteReader();
-				reader.Read();
-				int result = reader.GetInt32(0);
-				reader.Close();
+				int result = GetIntFromCommand(0);
 
 				if (false == startedOpen)
 				{
@@ -164,6 +336,10 @@ namespace Word_Analyzer
 			{
 				if (null != transaction.Connection)
 					transaction.Rollback();
+				else
+				{
+					//delete the program created tables here
+				}
 				conn.Close();
 			}
 			catch { };
@@ -237,7 +413,7 @@ namespace Word_Analyzer
 			int sum = 0;
 			foreach ((char letter, byte pos) in reqPos)
 			{
-				cmd.CommandText = getRemReqPosCommand(pos, letter);
+				cmd.CommandText = GetRemReqPosCommand(pos, letter);
 				sum += cmd.ExecuteNonQuery();
 			}
 			return sum;
@@ -304,8 +480,8 @@ namespace Word_Analyzer
 			return sum;
 		}
 
-		///Compute
-		public List<List<(char, int)>> ComputePos(List<char> alphabet)
+		//Compute
+		public List<List<(char, int)>> ComputePos(List<char> alphabet, string table)
 		{
 			List<List<(char, int)>> results = new List<List<(char, int)>>();
 			for (byte i = 0; i < length; i++)
@@ -313,48 +489,144 @@ namespace Word_Analyzer
 				List<(char, int)> column = new List<(char, int)>();
 				foreach (char letter in alphabet)
 				{
-					cmd.CommandText = getComputePosCommand(i, letter);
-					SqlDataReader reader = cmd.ExecuteReader();
-					reader.Read();
-					column.Add((letter, reader.GetInt32(0)));
-					reader.Close();
+					cmd.CommandText = GetComputePosCommand(i, letter, table);
+					column.Add((letter, GetIntFromCommand(0)));
 				}
-				column.Sort((x, y) => y.Item2.CompareTo(x.Item2));
 				results.Add(column);
 			}
 
 			return results;
 		}
 
+		public List<List<(char, int)>> ComputePos(List<char> alphabet)
+		{
+			return ComputePos(alphabet, tableString);
+		}
+
+
+		public List<List<(char, int)>> ComputePosAndSort(List<char> alphabet)
+		{
+			List<List<(char, int)>> results = ComputePos(alphabet);
+			foreach(List<(char, int)> entry in results)
+			{
+				entry.Sort((x, y) => y.Item2.CompareTo(x.Item2));
+			}
+			return results;
+		}
+
 		public List<(char, int)> ComputeInc(List<char> alphabet)
+		{
+			return ComputeInc(alphabet, tableString);
+		}
+
+		public List<(char, int)> ComputeInc(List<char> alphabet, string table)
 		{
 			List<(char, int)> results = new List<(char, int)>();
 			foreach (char letter in alphabet)
 			{
-				cmd.CommandText = getComputeIncCommand(letter);
-				SqlDataReader reader = cmd.ExecuteReader();
-				reader.Read();
-				results.Add((letter, reader.GetInt32(0)));
-				reader.Close();
+				cmd.CommandText = GetComputeIncCommand(letter, table);
+				results.Add((letter, GetIntFromCommand(0)));
 			}
 
 			return results;
 		}
 
-		public bool ProcessTable(string table, List<char> alphabet)
+		public string GetCreateWordTableCommand()
 		{
-			try
-			{
-				foreach (char letter in fullAlphabet)
-				{
+			//check if state word table exists, create a copy from the main word list table if it doesn't
+			//Table needs two columns, word and score
+			//initialize the scores to 0
+			string command =
+				"\nDROP TABLE IF EXISTS " + stateWordTable + ";\n" +
 
-				}
-				return true;
-			}
-			catch
+				"\nSELECT " + columnString + " INTO " + stateWordTable + "" +
+				"\nFROM " + tableString + ";\n" +
+
+				"\nALTER TABLE " + stateWordTable +
+				"\nADD Score int NOT NULL DEFAULT(0);\n";
+			return command;
+		}
+
+		public string GetCreateLetterTableCommand(List<char> alphabet, string table, string wordTable)
+		{
+			string command =
+				"\nIF NOT EXISTS (" +
+				"\n\tSELECT *" +
+				"\n\tFROM INFORMATION_SCHEMA.TABLES" +
+				"\n\tWHERE TABLE_NAME = N'" + table + "'" +
+				"\n)" +
+				"\nBEGIN" +
+				"\nCREATE TABLE " + table + " (" +
+				"\n\tLetter varchar(1)," +
+				"\n\tScoreInc int";
+				
+			for (int i = 0; i < length; i++)
 			{
-				return false;
+				command += ",\n\tScorePos" + i + " int";
 			}
+			command += "\n)" +
+				"\nEND;\n";
+
+			//truncate table
+			command +=
+				"\nTRUNCATE TABLE " + table + ";\n";
+
+			//Calculate the letter scores
+			List<List<(char, int)>> posList = ComputePos(alphabet, wordTable);
+			List<(char, int)> incList = ComputeInc(alphabet, wordTable);
+			command +=
+				"\nINSERT INTO " + stateLetterTable +
+				"\nVALUES";
+
+			bool first = true;
+			for (int i = 0; i < alphabet.Count; i++)
+			{
+				char letter = alphabet[i];
+				int incScore = incList[i].Item2;
+				if (first)
+				{
+					command += "\n\t('" + letter + "', " + incScore;
+					first = false;
+				}
+				else
+					command += ",\n\t('" + letter + "', " + incScore;
+				for (int pos = 0; pos < length; pos++)
+				{
+					command += ", " + posList[pos][i].Item2;
+				}
+
+				command += ")";
+			}
+			command += "\n;\n";
+
+
+			return command;
+		}
+
+		public string GetProcessWordTableCommand(string table)
+		{
+			string command =
+				"ALTER TABLE";
+
+			return command;
+		}
+
+		public void CreateWordTable()
+		{
+			cmd.CommandText = GetCreateWordTableCommand();
+			cmd.ExecuteNonQuery();
+		}
+
+		public void CreateLetterTable(List<char> alphabet, string table, string wordTable)
+		{
+			cmd.CommandText = GetCreateLetterTableCommand(alphabet, table, wordTable);
+			cmd.ExecuteNonQuery();
+		}
+
+		public void ProcessWordTable(string table)
+		{
+			cmd.CommandText = GetProcessWordTableCommand(table);
+			cmd.ExecuteNonQuery();
 		}
 
 		/// <summary>
@@ -364,7 +636,7 @@ namespace Word_Analyzer
 		/// <returns></returns>
 		public (List<List<(char, int)>>, List<(char, int)>) Run(List<(char, byte)> feedback)
 		{
-			startConnection();
+			StartConnection();
 
 			//Create list of allowed letters
 			UpdateLetters(feedback);
@@ -387,8 +659,8 @@ namespace Word_Analyzer
 
 
 			//Compute
-			(List<List<(char, int)>>, List<(char, int)>) results = (ComputePos(alphabet), ComputeInc(alphabet));
-			endConnection();
+			(List<List<(char, int)>>, List<(char, int)>) results = (ComputePosAndSort(alphabet), ComputeInc(alphabet));
+			EndConnection();
 			return results;
 		}
 

@@ -4,6 +4,8 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Linq;
 using Word_Analyzer;
+using System.Data;
+using System.Data.SqlClient;
 
 
 namespace WordleTests
@@ -176,10 +178,10 @@ namespace WordleTests
 		}
 
 		[TestMethod]
-		public void ComputePosTest()
+		public void ComputePosAndSortTest()
 		{
 			Analyzer an = new Analyzer(5);
-			List<List<(char letter, int num)>> results = an.ComputePos(new List<char> { 'a', 'e' });
+			List<List<(char letter, int num)>> results = an.ComputePosAndSort(new List<char> { 'a', 'e' });
 			
 			//e
 			Assert.AreEqual(421, results[0][1].num);
@@ -234,6 +236,181 @@ namespace WordleTests
 			analyzer.Run(word1);
 			analyzer.Run(word2);
 			analyzer.Run(word3);
+
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void GetCreateWordTableCommandTest()
+		{
+			Analyzer analyzer = new Analyzer(5);
+
+			string expected =
+				"\nDROP TABLE IF EXISTS editWordTable;\n" + 
+				
+				"\nSELECT words INTO editWordTable" +
+				"\nFROM english.dbo.words;\n" +
+				
+				"\nALTER TABLE editWordTable" +
+				"\nADD Score int NOT NULL DEFAULT(0);\n";
+
+			string result = analyzer.GetCreateWordTableCommand();
+
+			Assert.AreEqual(expected, result);
+		}
+
+		[TestMethod]
+		public void GetCreateLetterTableCommandTest()
+		{
+			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+			Analyzer analyzer = new Analyzer(5);
+
+
+			string expected =
+				"\nIF NOT EXISTS (" +
+				"\n\tSELECT *" +
+				"\n\tFROM INFORMATION_SCHEMA.TABLES" +
+				"\n\tWHERE TABLE_NAME = N'editLetterTable'" +
+				"\n)" +
+				"\nBEGIN" +
+				"\nCREATE TABLE editLetterTable (" +
+				"\n\tLetter varchar(1)," +
+				"\n\tScoreInc int," +
+				"\n\tScorePos0 int," +
+				"\n\tScorePos1 int," +
+				"\n\tScorePos2 int," +
+				"\n\tScorePos3 int," +
+				"\n\tScorePos4 int" +
+				"\n)" +
+				"\nEND;\n" +
+				"\nTRUNCATE TABLE editLetterTable;\n" +
+				"\nINSERT INTO editLetterTable" +
+				"\nVALUES" +
+				"\n\t('a', 7248, 1174, 2871, 1481, 1585, 1282)," +
+				"\n\t('b', 1937, 1141, 109, 446, 297, 97)," +
+				"\n\t('c', 2588, 1196, 254, 531, 542, 221)," +
+				"\n\t('d', 2641, 801, 136, 514, 545, 817)," +
+				"\n\t('e', 6730, 421, 1971, 1027, 2510, 1873)," +
+				"\n\t('f', 1115, 684, 40, 198, 215, 101)," +
+				"\n\t('g', 1867, 737, 102, 461, 477, 194)," +
+				"\n\t('h', 2223, 571, 720, 208, 288, 497)," +
+				"\n\t('j', 372, 260, 19, 57, 38, 2)," +
+				"\n\t('k', 1663, 473, 101, 309, 484, 376)," +
+				"\n\t('l', 3924, 679, 866, 1061, 923, 718)," +
+				"\n\t('m', 2361, 849, 233, 649, 466, 297)," +
+				"\n\t('o', 4613, 334, 2281, 1154, 903, 547)," +
+				"\n\t('p', 2148, 944, 283, 434, 424, 214)," +
+				"\n\t('q', 139, 85, 21, 27, 3, 3)," +
+				"\n\t('r', 4865, 681, 1151, 1545, 872, 895)," +
+				"\n\t('t', 3866, 981, 316, 783, 1019, 1090)," +
+				"\n\t('u', 3241, 328, 1403, 787, 686, 157)," +
+				"\n\t('v', 853, 287, 81, 287, 200, 23)," +
+				"\n\t('w', 1160, 468, 174, 276, 159, 94)," +
+				"\n\t('x', 357, 27, 74, 126, 18, 116)," +
+				"\n\t('y', 2477, 167, 279, 229, 161, 1686)," +
+				"\n\t('z', 435, 112, 36, 143, 129, 54)" +
+				"\n;\n";
+
+			analyzer.CreateWordTable();
+			string result = analyzer.GetCreateLetterTableCommand(alphabet, "editLetterTable", "editWordTable");
+
+			Assert.AreEqual(expected, result);
+		}
+
+		[TestMethod]
+		public void GetProcessWordTableCommandTest()
+		{
+			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+			Analyzer analyzer = new Analyzer(5);
+
+			string expected =  "";
+
+			analyzer.CreateWordTable();
+			analyzer.CreateLetterTable(alphabet, "editLetterTable", "editWordTable");
+
+			string result = analyzer.GetCreateWordTableCommand() + analyzer.GetCreateLetterTableCommand(alphabet, "editLetterTable", "editWordTable") + analyzer.GetProcessWordTableCommand("editLetterTable");
+
+			Assert.AreEqual(expected, result);
+		}
+
+		[TestMethod]
+		public void CreateWordTableTest()
+		{
+			Analyzer analyzer = new Analyzer(5);
+			analyzer.CreateWordTable();
+
+			string query =
+				"SELECT count(*)\n" +
+				"FROM editWordTable\n" +
+				"WHERE NOT Score = 0;";
+			SqlDataReader reader = analyzer.getReader(query);
+			reader.Read();
+			int result = reader.GetInt32(0);
+			reader.Close();
+			Assert.AreEqual(0, result);
+
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void WIPCreateLetterTableTest()
+		{
+			//Not Implemented currently, the query works when run
+		}
+
+		[TestMethod]
+		public void CreateLetterTableTest()
+		{
+			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+			Analyzer analyzer = new Analyzer(5);
+			string query =
+				"SELECT count(*)" +
+				"FROM words" +
+				"WHERE words LIKE '%a%';";
+			SqlDataReader reader = analyzer.getReader(query);
+			reader.Read();
+			int expected = reader.GetInt32(0);
+			reader.Close();
+
+			analyzer.CreateLetterTable(alphabet, "words", "words");
+
+			query =
+				"SELECT Score" +
+				"FROM editWordTable" +
+				"WHERE editWordTable.Letter = 'a';";
+			reader = analyzer.getReader(query);
+			reader.Read();
+			int result = reader.GetInt32(0);
+			reader.Close();
+			Assert.AreEqual(expected, result);
+
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void ProcessWordTableTest()
+		{
+			Analyzer analyzer = new Analyzer(5);
+			string query =
+				"SELECT count(*)" +
+				"FROM words" +
+				"WHERE words LIKE '%a%';";
+			SqlDataReader reader = analyzer.getReader(query);
+			reader.Read();
+			int expected = reader.GetInt32(0);
+			reader.Close();
+
+			analyzer.ProcessWordTable("words");
+
+			query =
+				"SELECT Score" +
+				"FROM editWordTable" +
+				"WHERE editWordTable.Letter = 'a';";
+			reader = analyzer.getReader(query);
+			reader.Read();
+			int result = reader.GetInt32(0);
+			reader.Close();
+			Assert.AreEqual(expected, result);
 
 			analyzer.Dispose();
 		}
