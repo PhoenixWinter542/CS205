@@ -47,6 +47,23 @@ namespace Word_Analyzer
 			return guesses;
 		}
 
+		public static List<string> InverseWordleSQL(string answer)
+		{
+			Analyzer an = new Analyzer(5);
+			string result = "saint";
+			List<string> guesses = new List<string> { result };
+
+			while (result != answer)
+			{
+				result = an.GetTopWord(Process(result, answer)).Item1;
+				guesses.Add(result);
+				Debug.WriteLine(result);
+			}
+
+			an.Dispose();
+			return guesses;
+		}
+
 		public static string GetRandWord(string connectionString)
 		{
 			SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM english.dbo.words;", connectionString);

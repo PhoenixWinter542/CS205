@@ -241,177 +241,198 @@ namespace WordleTests
 		}
 
 		[TestMethod]
-		public void GetCreateWordTableCommandTest()
+		public void GetAddWeightsCommandTest()
 		{
 			Analyzer analyzer = new Analyzer(5);
 
 			string expected =
-				"\nDROP TABLE IF EXISTS editWordTable;\n" + 
-				
-				"\nSELECT words INTO editWordTable" +
-				"\nFROM english.dbo.words;\n" +
-				
-				"\nALTER TABLE editWordTable" +
-				"\nADD Score int NOT NULL DEFAULT(0);\n";
+				//Add Weights
+				"\nDROP TABLE IF EXISTS editWeights;" +
+				"\nCREATE TABLE editWeights(pos int, incWeights float(53), posWeights float(53));\n" +
 
-			string result = analyzer.GetCreateWordTableCommand();
+				"\nINSERT INTO editWeights" +
+				"\nVALUES" +
+				"\n\t(0, 1, 1)," +
+				"\n\t(1, 1, 1)," +
+				"\n\t(2, 1, 1)," +
+				"\n\t(3, 1, 1)," +
+				"\n\t(4, 1, 1);\n";
 
-			Assert.AreEqual(expected, result);
+			Assert.AreEqual(expected, analyzer.GetAddWeightsCommand(new List<double>{ 1, 1, 1, 1, 1}, new List<double> { 1, 1, 1, 1, 1 }));
+			analyzer.Dispose();
 		}
 
 		[TestMethod]
-		public void GetCreateLetterTableCommandTest()
+		public void GetWordTableCommandTest()
 		{
-			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 			Analyzer analyzer = new Analyzer(5);
 
+			string expected =
+				//Create wordTable
+				"\nDROP TABLE IF EXISTS editWordTable;" +
+				"\nCREATE TABLE editWordTable(" +
+				"\n\tWord varchar(5)," +
+				"\n\tScore int NOT NULL DEFAULT(0)" +
+				"\n);\n" +
+
+				"\nINSERT INTO editWordTable(word)" +
+				"\nSELECT words" +
+				"\nFROM english.dbo.words;\n";
+
+			Assert.AreEqual(expected, analyzer.GetWordTableCommand("editWordTable"));
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void GetAlphabetCommandTest()
+		{
+			List<char> alphabet = new List<char>() { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+			Analyzer analyzer = new Analyzer(5);
 
 			string expected =
-				"\nIF NOT EXISTS (" +
-				"\n\tSELECT *" +
-				"\n\tFROM INFORMATION_SCHEMA.TABLES" +
-				"\n\tWHERE TABLE_NAME = N'editLetterTable'" +
-				"\n)" +
-				"\nBEGIN" +
-				"\nCREATE TABLE editLetterTable (" +
-				"\n\tLetter varchar(1)," +
-				"\n\tScoreInc int," +
-				"\n\tScorePos0 int," +
-				"\n\tScorePos1 int," +
-				"\n\tScorePos2 int," +
-				"\n\tScorePos3 int," +
-				"\n\tScorePos4 int" +
-				"\n)" +
-				"\nEND;\n" +
-				"\nTRUNCATE TABLE editLetterTable;\n" +
-				"\nINSERT INTO editLetterTable" +
-				"\nVALUES" +
-				"\n\t('a', 7248, 1174, 2871, 1481, 1585, 1282)," +
-				"\n\t('b', 1937, 1141, 109, 446, 297, 97)," +
-				"\n\t('c', 2588, 1196, 254, 531, 542, 221)," +
-				"\n\t('d', 2641, 801, 136, 514, 545, 817)," +
-				"\n\t('e', 6730, 421, 1971, 1027, 2510, 1873)," +
-				"\n\t('f', 1115, 684, 40, 198, 215, 101)," +
-				"\n\t('g', 1867, 737, 102, 461, 477, 194)," +
-				"\n\t('h', 2223, 571, 720, 208, 288, 497)," +
-				"\n\t('j', 372, 260, 19, 57, 38, 2)," +
-				"\n\t('k', 1663, 473, 101, 309, 484, 376)," +
-				"\n\t('l', 3924, 679, 866, 1061, 923, 718)," +
-				"\n\t('m', 2361, 849, 233, 649, 466, 297)," +
-				"\n\t('o', 4613, 334, 2281, 1154, 903, 547)," +
-				"\n\t('p', 2148, 944, 283, 434, 424, 214)," +
-				"\n\t('q', 139, 85, 21, 27, 3, 3)," +
-				"\n\t('r', 4865, 681, 1151, 1545, 872, 895)," +
-				"\n\t('t', 3866, 981, 316, 783, 1019, 1090)," +
-				"\n\t('u', 3241, 328, 1403, 787, 686, 157)," +
-				"\n\t('v', 853, 287, 81, 287, 200, 23)," +
-				"\n\t('w', 1160, 468, 174, 276, 159, 94)," +
-				"\n\t('x', 357, 27, 74, 126, 18, 116)," +
-				"\n\t('y', 2477, 167, 279, 229, 161, 1686)," +
-				"\n\t('z', 435, 112, 36, 143, 129, 54)" +
+				//Add Alphabet 
+				"\nDROP TABLE IF EXISTS editAlphabet;" +
+				"\nSELECT letter INTO editAlphabet" +
+				"\nFROM (Values" +
+				"\n\t('a')," +
+				"\n\t('b')," +
+				"\n\t('c')," +
+				"\n\t('d')," +
+				"\n\t('e')," +
+				"\n\t('f')," +
+				"\n\t('g')," +
+				"\n\t('h')," +
+				"\n\t('i')," +
+				"\n\t('j')," +
+				"\n\t('k')," +
+				"\n\t('l')," +
+				"\n\t('m')," +
+				"\n\t('n')," +
+				"\n\t('o')," +
+				"\n\t('p')," +
+				"\n\t('q')," +
+				"\n\t('r')," +
+				"\n\t('s')," +
+				"\n\t('t')," +
+				"\n\t('u')," +
+				"\n\t('v')," +
+				"\n\t('w')," +
+				"\n\t('x')," +
+				"\n\t('y')," +
+				"\n\t('z')) AS a(letter)" +
 				"\n;\n";
 
-			analyzer.CreateWordTable();
-			string result = analyzer.GetCreateLetterTableCommand(alphabet, "editLetterTable", "editWordTable");
-
-			Assert.AreEqual(expected, result);
-		}
-
-		[TestMethod]
-		public void GetProcessWordTableCommandTest()
-		{
-			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
-			Analyzer analyzer = new Analyzer(5);
-
-			string expected =  "";
-
-			analyzer.CreateWordTable();
-			analyzer.CreateLetterTable(alphabet, "editLetterTable", "editWordTable");
-
-			string result = analyzer.GetCreateWordTableCommand() + analyzer.GetCreateLetterTableCommand(alphabet, "editLetterTable", "editWordTable") + analyzer.GetProcessWordTableCommand("editLetterTable");
-
-			Assert.AreEqual(expected, result);
-		}
-
-		[TestMethod]
-		public void CreateWordTableTest()
-		{
-			Analyzer analyzer = new Analyzer(5);
-			analyzer.CreateWordTable();
-
-			string query =
-				"SELECT count(*)\n" +
-				"FROM editWordTable\n" +
-				"WHERE NOT Score = 0;";
-			SqlDataReader reader = analyzer.getReader(query);
-			reader.Read();
-			int result = reader.GetInt32(0);
-			reader.Close();
-			Assert.AreEqual(0, result);
-
+			Assert.AreEqual(expected, analyzer.GetAlphabetCommand(alphabet));
 			analyzer.Dispose();
 		}
 
 		[TestMethod]
-		public void WIPCreateLetterTableTest()
+		public void GetProcessLettersCommandTest()
 		{
-			//Not Implemented currently, the query works when run
-		}
-
-		[TestMethod]
-		public void CreateLetterTableTest()
-		{
-			List<char> alphabet = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 			Analyzer analyzer = new Analyzer(5);
-			string query =
-				"SELECT count(*)" +
-				"FROM words" +
-				"WHERE words LIKE '%a%';";
-			SqlDataReader reader = analyzer.getReader(query);
-			reader.Read();
-			int expected = reader.GetInt32(0);
-			reader.Close();
 
-			analyzer.CreateLetterTable(alphabet, "words", "words");
+			string expected =
+				//process letters
+				"\nDROP VIEW IF EXISTS editLetterView;\n" +
 
-			query =
-				"SELECT Score" +
-				"FROM editWordTable" +
-				"WHERE editWordTable.Letter = 'a';";
-			reader = analyzer.getReader(query);
-			reader.Read();
-			int result = reader.GetInt32(0);
-			reader.Close();
-			Assert.AreEqual(expected, result);
+				"\nGO" +
+				"\nCREATE VIEW editLetterView" +
+				"\nAS" +
+				"\nSELECT" +
+				"\n\tletter," +
+				"\n\tCOUNT(*) AS ScoreInc," +
+				"\n\tCOUNT(CASE WHEN SUBSTRING(word, 1, 1) = letter THEN 1 END) AS ScorePos0," +
+				"\n\tCOUNT(CASE WHEN SUBSTRING(word, 2, 1) = letter THEN 1 END) AS ScorePos1," +
+				"\n\tCOUNT(CASE WHEN SUBSTRING(word, 3, 1) = letter THEN 1 END) AS ScorePos2," +
+				"\n\tCOUNT(CASE WHEN SUBSTRING(word, 4, 1) = letter THEN 1 END) AS ScorePos3," +
+				"\n\tCOUNT(CASE WHEN SUBSTRING(word, 5, 1) = letter THEN 1 END) AS ScorePos4" +
+				"\nFROM editWordTable, editAlphabet" +
+				"\nWHERE word LIKE '%' + letter + '%'" +
+				"\nGROUP BY letter;" +
+				"\nGO\n";
 
+			Assert.AreEqual(expected, analyzer.GetProcessLettersCommand("editWordTable"));
 			analyzer.Dispose();
 		}
 
 		[TestMethod]
-		public void ProcessWordTableTest()
+		public void GetProcessWordsCommandTest()
 		{
 			Analyzer analyzer = new Analyzer(5);
-			string query =
-				"SELECT count(*)" +
-				"FROM words" +
-				"WHERE words LIKE '%a%';";
-			SqlDataReader reader = analyzer.getReader(query);
-			reader.Read();
-			int expected = reader.GetInt32(0);
-			reader.Close();
 
-			analyzer.ProcessWordTable("words");
+			string expected =
+				//process words
+				"\nDROP FUNCTION IF EXISTS editProcessWord;\n" +
+				
+				"\nGO" +
+				"\nCREATE FUNCTION editProcessWord(@char0 varchar(1), @char1 varchar(1), @char2 varchar(1), @char3 varchar(1), @char4 varchar(1))" +
+				"\nRETURNS TABLE" +
+				"\nAS" +
+				"\nRETURN" +
+				"\n(" +
+				"\n\tSELECT ScoreInc AS score," +
+				"\n\t\tCASE WHEN @char0 = a.letter THEN ScorePos0 * (SELECT posWeights FROM editWeights ORDER BY pos OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END +" +
+				"\n\t\tCASE WHEN @char1 = a.letter THEN ScorePos1 * (SELECT posWeights FROM editWeights ORDER BY pos OFFSET 1 ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END +" +
+				"\n\t\tCASE WHEN @char2 = a.letter THEN ScorePos2 * (SELECT posWeights FROM editWeights ORDER BY pos OFFSET 2 ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END +" +
+				"\n\t\tCASE WHEN @char3 = a.letter THEN ScorePos3 * (SELECT posWeights FROM editWeights ORDER BY pos OFFSET 3 ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END +" +
+				"\n\t\tCASE WHEN @char4 = a.letter THEN ScorePos4 * (SELECT posWeights FROM editWeights ORDER BY pos OFFSET 4 ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END" +
+				"\n\t\tAS PosScore" +
+				"\n\tFROM" +
+				"\n\t\t(VALUES (@char0), (@char1), (@char2), (@char3), (@char4)) AS a(letter)" +
+				"\n\t\t\tINNER JOIN" +
+				"\n\t\teditLetterView AS b" +
+				"\n\tON a.letter = b.letter\n)" +
+				"\nGO\n" +
 
-			query =
-				"SELECT Score" +
-				"FROM editWordTable" +
-				"WHERE editWordTable.Letter = 'a';";
-			reader = analyzer.getReader(query);
-			reader.Read();
-			int result = reader.GetInt32(0);
-			reader.Close();
-			Assert.AreEqual(expected, result);
+				"\nDROP FUNCTION IF EXISTS editProcessScores;\n" +
 
+				"\nGO" +
+				"\nCREATE FUNCTION editProcessScores(@char0 varchar(1), @char1 varchar(1), @char2 varchar(1), @char3 varchar(1), @char4 varchar(1))" +
+				"\nRETURNS TABLE" +
+				"\nAS" +
+				"\nRETURN" +
+				"\n(" +
+				"\n\tSELECT editWeights.incWeights * l.score + PosScore AS score" +
+				"\n\tFROM editWeights, (SELECT ROW_NUMBER() OVER (PARTITION BY score ORDER BY score DESC)  AS pos, score, PosScore FROM dbo.editProcessWord(@char0, @char1, @char2, @char3, @char4)) AS l" +
+				"\n\tWHERE l.pos = editWeights.pos" +
+				"\n)" +
+				"\nGO\n" +
+
+				"\nUPDATE editWordTable" +
+				"\nSET Score = (SELECT SUM(score) FROM dbo.editProcessScores(SUBSTRING(word, 1, 1), SUBSTRING(word, 2, 1), SUBSTRING(word, 3, 1), SUBSTRING(word, 4, 1), SUBSTRING(word, 5, 1)))" +
+				"\nFROM editWordTable;\n";
+
+			Assert.AreEqual(expected, "");
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void GetReturnsCommandTest()
+		{
+			Analyzer analyzer = new Analyzer(5);
+
+			string expected =
+				"\nSELECT * FROM editWordTable ORDER BY score DESC OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY;\n";
+
+			Assert.AreEqual(expected, analyzer.GetReturnsCommand("editWordTable"));
+			analyzer.Dispose();
+		}
+
+		[TestMethod]
+		public void GetDropsCommandTest()
+		{
+			Analyzer analyzer = new Analyzer(5);
+
+			string expected =
+				//EndDrops
+				"\nDROP TABLE IF EXISTS editWordTable;" +
+				"\nDROP VIEW IF EXISTS editLetterView;" +
+				"\nDROP TABLE IF EXISTS editWeights;" +
+				"\nDROP TABLE IF EXISTS editAlphabet;" +
+				"\nDROP FUNCTION IF EXISTS editProcessScores;" +
+				"\nDROP FUNCTION IF EXISTS editProcessWord;\n"; ;
+
+			Assert.AreEqual(expected, analyzer.GetDropsCommand("editWordTable"));
 			analyzer.Dispose();
 		}
 	}

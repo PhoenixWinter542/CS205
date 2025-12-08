@@ -104,12 +104,16 @@ namespace Word_Analyzer
 		/// eg. incWeights[0] will apply to the letter with the highest score, incWeights[1] will apply to the letter with the second highest score, and so on
 		/// if a word contains a letter twice, this letter will be included in the scores twice and take up two neighboring positions
 		/// </summary>
-		public List<double> incAny;
+		public List<double> incWeights;
 
 		/// <summary>
 		/// these weights will be multiplied to the score of the letter in the relevant position
 		/// </summary>
-		public List<double> incPos;
+		public List<double> posWeights;
+
+		public List<double> baseIncWeights;
+
+		public List<double> basePosWeights;
 	}
 
 	public class Analyzer : IDisposable
@@ -120,6 +124,7 @@ namespace Word_Analyzer
 		public readonly string columnString;
 		public readonly string stateWordTable;
 		public readonly string stateLetterTable;
+		public readonly string rootName;
 		SqlConnection conn;
 		SqlTransaction transaction;
 		SqlCommand cmd;
@@ -154,7 +159,7 @@ namespace Word_Analyzer
 			tableString = table;
 			columnString = column;
 			stateWordTable = tmpRootName + "WordTable";
-			stateLetterTable = tmpRootName + "LetterTable";
+			rootName = tmpRootName;
 
 			conn = new SqlConnection(connectionString);
 			if (false == StartConnection() || false == TestConnection())
@@ -165,32 +170,60 @@ namespace Word_Analyzer
 			reqPos = new List<(char, byte)>();
 			reqLetters = new List<char>();
 
-			if (null == weights.incAny)
-				weights.incAny = new List<double>();
-			if(null == weights.incPos)
-				weights.incPos = new List<double>();
+			if (null == weights.incWeights)
+				weights.incWeights = new List<double>();
+			if(null == weights.posWeights)
+				weights.posWeights = new List<double>();
+			if (null == weights.baseIncWeights)
+				weights.baseIncWeights = new List<double>();
+			if (null == weights.basePosWeights)
+				weights.basePosWeights = new List<double>();
 
-			if (weights.incAny.Count < length)
+			if (weights.incWeights.Count < length)
 			{
-				weights.incAny.Clear();
+				weights.incWeights.Clear();
 				for(int i = 0; i < length; i++)
 				{
-					weights.incAny.Add(0);
+					weights.incWeights.Add(1);
 				}
 			}
-			if (weights.incPos.Count < length)
+			if (weights.posWeights.Count < length)
 			{
-				weights.incPos.Clear();
+				weights.posWeights.Clear();
 				for (int i = 0; i < length; i++)
 				{
-					weights.incPos.Add(0);
+					weights.posWeights.Add(1);
+				}
+			}
+			if (weights.baseIncWeights.Count < length)
+			{
+				weights.baseIncWeights.Clear();
+				for (int i = 0; i < length; i++)
+				{
+					weights.baseIncWeights.Add(1);
+				}
+			}
+			if (weights.basePosWeights.Count < length)
+			{
+				weights.basePosWeights.Clear();
+				for (int i = 0; i < length; i++)
+				{
+					weights.basePosWeights.Add(1);
 				}
 			}
 			this.weights = weights;
 
-			//CreateLetterTable(fullAlphabet, tableString);
-			//ProcessWordTable(tableString);
-			//CreateWordTable();
+			cmd.CommandText = GetStartBatch(weights.incWeights, weights.posWeights, stateWordTable, fullAlphabet);
+			cmd.ExecuteNonQuery();
+
+			cmd.CommandText = GetProcessLettersCommand(stateWordTable);
+			cmd.ExecuteNonQuery();
+
+			cmd.CommandText = GetProcessWordCommand();
+			cmd.ExecuteNonQuery();
+
+			cmd.CommandText = GetProcessScoresCommand(stateWordTable);
+			cmd.ExecuteNonQuery();
 		}
 
 		private int GetIntFromCommand(int pos)
@@ -205,52 +238,281 @@ namespace Word_Analyzer
 
 		//Sql Command Generators
 
-		private string GetRemReqPosCommand(byte charPos, char letter)
+		public string GetProcessLettersCommand(string wordTable)
 		{
 			string command = 
-				"\nDELETE FROM " + tableString + 
-				"\nWHERE " + columnString + " NOT LIKE " + CreateRegex(charPos, letter) + ";\n";
-			return command;
-		}
-
-		private string GetRemReqNPosCommand(char letter)
-		{
-			string command =
-				"\nDELETE FROM " + tableString + 
-				"\nWHERE " + columnString + " NOT LIKE '%" + letter + "%';\n";
-			return command;
-		}
-
-		private string GetRemBannedCommand(char letter)
-		{
-			//Find any required positions
-			var reqs = reqPos.Where(x => x.letter == letter).ToList();
-			reqs.Sort((x, y) => x.pos.CompareTo(y.pos));
-			int pos = 0;
-			string regex = "";
+				"\nCREATE VIEW " + rootName + "LetterView" +
+				"\nAS" +
+				"\nSELECT" +
+				"\n\tletter," +
+				"\n\tCOUNT(*) AS ScoreInc,";
 			for (int i = 0; i < length; i++)
 			{
-				if (pos >= reqs.Count || i != reqs[pos].pos)
-				{
-					regex += "[^" + letter + "]";
-				}
-				else
-				{
-					regex += letter;
-					pos++;
-				}
+				if (i != 0)
+					command += ",";
+				command += "\n\tCOUNT(CASE WHEN SUBSTRING(word, " + (i + 1) + ", 1) = letter THEN 1 END) AS ScorePos" + i;
 			}
-			string command =
-				"\nDELETE FROM " + tableString + 
-				"\nWHERE " + columnString + " NOT LIKE '" + regex + "';\n";
+			command +=
+				"\nFROM " + wordTable + ", " + rootName + "Alphabet" +
+				"\nWHERE word LIKE '%' + letter + '%'" +
+				"\nGROUP BY letter;\n";
+
 			return command;
 		}
 
-		private string GetRemInvalPosCommand(byte charPos, char letter)
+		public string GetUpdateAlphabetCommand(List<char> alphabet)
 		{
 			string command =
-				"\nDELETE FROM " + tableString + 
-				"\nWHERE " + columnString + " LIKE " + CreateRegex(charPos, letter) + ";\n";
+				"\nDELETE FROM " + rootName + "Alphabet WHERE NOT letter IN (";
+			bool first = true;
+			foreach(char letter in alphabet)
+			{
+				if (first)
+					first = false;
+				else
+					command += ", ";
+				command += "'" + letter + "'";
+			}
+			command += ");\n";
+			return command;
+		}
+
+		public string GetProcessWordCommand()
+		{
+			string command =
+				"\nCREATE FUNCTION " + rootName + "ProcessWord(";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ", ";
+				command += "@char" + i + " varchar(1)";
+			}
+			command +=
+				")" +
+				"\nRETURNS TABLE" +
+				"\nAS" +
+				"\nRETURN" +
+				"\n(" +
+				"\n\tSELECT ScoreInc AS score,";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += " +";
+				command += "\n\t\tCASE WHEN @char" + i + " = a.letter THEN ScorePos" + i + " * (SELECT posWeights FROM " + rootName + "Weights ORDER BY pos OFFSET " + i + " ROWS FETCH NEXT 1 ROWS ONLY) ELSE 0 END";
+			}
+			command +=
+				"\n\t\tAS PosScore" +
+				"\n\tFROM" +
+				"\n\t\t(VALUES ";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ", ";
+				command += "(@char" + i + ")";
+			}
+			command += ") AS a(letter)" +
+				"\n\t\t\tINNER JOIN" +
+				"\n\t\teditLetterView AS b" +
+				"\n\tON a.letter = b.letter\n)";
+
+			return command;
+		}
+
+		public string GetProcessScoresCommand(string wordTable)
+		{
+			string command =
+				"\nCREATE FUNCTION " + rootName + "ProcessScores(";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ", ";
+				command += "@char" + i + " varchar(1)";
+			}
+			command +=
+				")" +
+				"\nRETURNS TABLE" +
+				"\nAS" +
+				"\nRETURN" +
+				"\n(" +
+				"\n\tSELECT " + rootName + "Weights.incWeights * l.score + PosScore AS score" +
+				"\n\tFROM " + rootName + "Weights, (SELECT ROW_NUMBER() OVER (PARTITION BY score ORDER BY score DESC)  AS pos, score, PosScore FROM dbo." + rootName + "ProcessWord(";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ", ";
+				command += "@char" + i;
+			}
+			command += ")) AS l" +
+				"\n\tWHERE l.pos = " + rootName + "Weights.pos" +
+				"\n)";
+			return command;
+		}
+		public string GetUpdateScoreCommand(string wordTable)
+		{
+			string command =
+				"\nUPDATE " + wordTable + "" +
+				"\nSET Score = (SELECT SUM(score) FROM dbo." + rootName + "ProcessScores(";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ", ";
+				command += "SUBSTRING(word, " + (i + 1) + ", 1)";
+			}
+			command += "))\nFROM " + wordTable + ";\n";
+
+			return command;
+		}
+
+		public string GetAddWeightsCommand(List<double>inc, List<double>pos)
+		{
+			string command =
+				"\nDROP TABLE IF EXISTS " + rootName + "Weights;" +
+				"\nCREATE TABLE " + rootName + "Weights(pos int, incWeights float(53), posWeights float(53));\n" +
+
+				"\nINSERT INTO " + rootName + "Weights" +
+				"\nVALUES";
+			for (int i = 0; i < length; i++)
+			{
+				if (i != 0)
+					command += ",\n\t(";
+				else
+					command += "\n\t(";
+				command +=
+					i + ", " +
+					inc[i] + ", " +
+					pos[i] + ")";
+			}
+			command += ";\n";
+
+			return command;
+		}
+
+		public string GetWordTableCommand(string wordTable)
+		{
+			string command =
+				"\nDROP TABLE IF EXISTS " + wordTable + ";" +
+				"\nCREATE TABLE " + wordTable + "(" +
+				"\n\tWord varchar(" + length + ")," +
+				"\n\tScore int NOT NULL DEFAULT(0)" +
+				"\n);\n" +
+
+				"\nINSERT INTO " + wordTable + "(word)" +
+				"\nSELECT " + columnString + "" +
+				"\nFROM " + tableString + ";\n";
+
+			return command;
+		}
+
+		public string GetAlphabetCommand(List<char> alphabet)
+		{
+			string command =
+				"\nDROP TABLE IF EXISTS " + rootName + "Alphabet;" +
+				"\nSELECT letter INTO " + rootName + "Alphabet" +
+				"\nFROM (Values";
+			bool first = true;
+			foreach(char letter in alphabet)
+			{
+				if (first)
+					first = false;
+				else
+					command += ",";
+				command += "\n\t('" + letter + "')";
+			}
+			command += 
+				") AS a(letter)" +
+				"\n;\n";
+
+			return command;
+		}
+
+		public string GetReturnsCommand(string wordTable)
+		{
+			string command = "\nSELECT * FROM " + wordTable + " ORDER BY score DESC OFFSET 0 ROWS FETCH NEXT 1 ROWS ONLY;\n";
+
+			return command;
+		}
+
+		public string GetDropsCommand(string wordTable)
+		{
+			string command =
+				"\nDROP TABLE IF EXISTS " + wordTable + ";" +
+				"\nDROP VIEW IF EXISTS " + rootName + "LetterView;" +
+				"\nDROP TABLE IF EXISTS " + rootName + "Weights;" +
+				"\nDROP TABLE IF EXISTS " + rootName + "Alphabet;" +
+				"\nDROP FUNCTION IF EXISTS " + rootName + "ProcessScores;" +
+				"\nDROP FUNCTION IF EXISTS " + rootName + "ProcessWord;\n";
+
+			return command;
+		}
+		public string GetStartBatch(List<double> inc, List<double> pos, string wordTable, List<char> alphabet)
+		{
+			return
+				GetDropsCommand(stateWordTable) +
+				GetAddWeightsCommand(weights.incWeights, weights.posWeights) +
+				GetWordTableCommand(stateWordTable) +
+				GetAlphabetCommand(alphabet);
+		}
+
+		private string GetRemReqPosCommand()
+		{
+			string command = "";
+			foreach ((char letter, byte pos) in reqPos)
+			{
+				command +=
+				"\nDELETE FROM " + stateWordTable +
+				"\nWHERE word NOT LIKE " + CreateRegex(pos, letter) + ";\n";
+			}
+			return command;
+
+		}
+
+		private string GetRemReqNPosCommand()
+		{
+			string command = "";
+			foreach (char letter in reqLetters)
+			{
+				 command += "\nDELETE FROM " + stateWordTable + " WHERE word NOT LIKE '%" + letter + "%';";
+			}
+			return command;
+		}
+
+		private string GetRemBannedCommand()
+		{
+			string command = "";
+			foreach (char letter in bannedLetters)
+			{
+				//Find any required positions
+				var reqs = reqPos.Where(x => x.letter == letter).ToList();
+				reqs.Sort((x, y) => x.pos.CompareTo(y.pos));
+				int pos = 0;
+				string regex = "";
+				for (int i = 0; i < length; i++)
+				{
+					if (pos >= reqs.Count || i != reqs[pos].pos)
+					{
+						regex += "[^" + letter + "]";
+					}
+					else
+					{
+						regex += letter;
+						pos++;
+					}
+				}
+				command += "\nDELETE FROM " + stateWordTable + " WHERE word NOT LIKE '" + regex + "';";
+
+			}
+			return command;
+		}
+
+		private string GetRemInvalPosCommand()
+		{
+			string command = "";
+			foreach ((char letter, byte pos) in bannedPos)
+			{
+				command += 
+					"\nDELETE FROM " + stateWordTable +
+					"\nWHERE word LIKE " + CreateRegex(pos, letter) + ";\n";
+			}
 			return command;
 		}
 
@@ -410,13 +672,11 @@ namespace Word_Analyzer
 		/// <returns></returns>
 		public int RemReqPos()
 		{
-			int sum = 0;
-			foreach ((char letter, byte pos) in reqPos)
-			{
-				cmd.CommandText = GetRemReqPosCommand(pos, letter);
-				sum += cmd.ExecuteNonQuery();
-			}
-			return sum;
+			cmd.CommandText = GetRemReqPosCommand();
+			if(cmd.CommandText != "")
+				return cmd.ExecuteNonQuery();
+			else
+				return 0;
 		}
 
 		/// <summary>
@@ -424,13 +684,11 @@ namespace Word_Analyzer
 		/// </summary>
 		public int RemReqNPos()
 		{
-			int sum = 0;
-			foreach (char letter in reqLetters)
-			{
-				cmd.CommandText = "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '%" + letter + "%';";
-				sum += cmd.ExecuteNonQuery();
-			}
-			return sum;
+			cmd.CommandText = GetRemReqNPosCommand();
+			if (cmd.CommandText != "")
+				return cmd.ExecuteNonQuery();
+			else
+				return 0;
 		}
 
 		/// <summary>
@@ -439,30 +697,11 @@ namespace Word_Analyzer
 		/// <returns></returns>
 		public int RemBanned()
 		{
-			int sum = 0;
-			foreach (char letter in bannedLetters)
-			{
-				//Find any required positions
-				var reqs = reqPos.Where(x => x.letter == letter).ToList();
-				reqs.Sort((x, y) => x.pos.CompareTo(y.pos));
-				int pos = 0;
-				string regex = "";
-				for (int i = 0; i < length; i++)
-				{
-					if (pos >= reqs.Count || i != reqs[pos].pos)
-					{
-						regex += "[^" + letter + "]";
-					}
-					else
-					{
-						regex += letter;
-						pos++;
-					}
-				}
-				cmd.CommandText = "DELETE FROM " + tableString + " WHERE " + columnString + " NOT LIKE '" + regex + "';";
-				sum += cmd.ExecuteNonQuery();
-			}
-			return sum;
+			cmd.CommandText = GetRemBannedCommand();
+			if (cmd.CommandText != "")
+				return cmd.ExecuteNonQuery();
+			else
+				return 0;
 		}
 
 		/// <summary>
@@ -471,13 +710,11 @@ namespace Word_Analyzer
 		/// <returns></returns>
 		public int RemInvalPos()
 		{
-			int sum = 0;
-			foreach ((char letter, byte pos) in bannedPos)
-			{
-				cmd.CommandText = "DELETE FROM " + tableString + " WHERE " + columnString + " LIKE " + CreateRegex(pos, letter) + ";";
-				sum += cmd.ExecuteNonQuery();
-			}
-			return sum;
+			cmd.CommandText = GetRemInvalPosCommand();
+			if (cmd.CommandText != "")
+				return cmd.ExecuteNonQuery();
+			else
+				return 0;
 		}
 
 		//Compute
@@ -531,102 +768,43 @@ namespace Word_Analyzer
 			return results;
 		}
 
-		public string GetCreateWordTableCommand()
+		/// <summary>
+		/// 0 - char not in word	|	1 - char in word, not in position	|	2 - char in word, in correct position
+		/// </summary>
+		/// <param name="feedback"></param>
+		/// <returns></returns>
+		public (string, int) GetTopWord(List<(char, byte)> feedback)
 		{
-			//check if state word table exists, create a copy from the main word list table if it doesn't
-			//Table needs two columns, word and score
-			//initialize the scores to 0
-			string command =
-				"\nDROP TABLE IF EXISTS " + stateWordTable + ";\n" +
+			//Create list of allowed letters
+			UpdateLetters(feedback);
+			List<char> alphabet = GetAllowed();
 
-				"\nSELECT " + columnString + " INTO " + stateWordTable + "" +
-				"\nFROM " + tableString + ";\n" +
-
-				"\nALTER TABLE " + stateWordTable +
-				"\nADD Score int NOT NULL DEFAULT(0);\n";
-			return command;
-		}
-
-		public string GetCreateLetterTableCommand(List<char> alphabet, string table, string wordTable)
-		{
-			string command =
-				"\nIF NOT EXISTS (" +
-				"\n\tSELECT *" +
-				"\n\tFROM INFORMATION_SCHEMA.TABLES" +
-				"\n\tWHERE TABLE_NAME = N'" + table + "'" +
-				"\n)" +
-				"\nBEGIN" +
-				"\nCREATE TABLE " + table + " (" +
-				"\n\tLetter varchar(1)," +
-				"\n\tScoreInc int";
+			string command = GetUpdateAlphabetCommand(alphabet);
 				
-			for (int i = 0; i < length; i++)
-			{
-				command += ",\n\tScorePos" + i + " int";
-			}
-			command += "\n)" +
-				"\nEND;\n";
+			command += GetRemReqPosCommand();
 
-			//truncate table
-			command +=
-				"\nTRUNCATE TABLE " + table + ";\n";
+			//Remove words without required letters, no position reqs
+			command += GetRemReqNPosCommand();
 
-			//Calculate the letter scores
-			List<List<(char, int)>> posList = ComputePos(alphabet, wordTable);
-			List<(char, int)> incList = ComputeInc(alphabet, wordTable);
-			command +=
-				"\nINSERT INTO " + stateLetterTable +
-				"\nVALUES";
+			//Remove words with banned letters
+			command += GetRemBannedCommand();
 
-			bool first = true;
-			for (int i = 0; i < alphabet.Count; i++)
-			{
-				char letter = alphabet[i];
-				int incScore = incList[i].Item2;
-				if (first)
-				{
-					command += "\n\t('" + letter + "', " + incScore;
-					first = false;
-				}
-				else
-					command += ",\n\t('" + letter + "', " + incScore;
-				for (int pos = 0; pos < length; pos++)
-				{
-					command += ", " + posList[pos][i].Item2;
-				}
+			//Remove words with letters in invalid positions
+			command += GetRemInvalPosCommand();
 
-				command += ")";
-			}
-			command += "\n;\n";
-
-
-			return command;
-		}
-
-		public string GetProcessWordTableCommand(string table)
-		{
-			string command =
-				"ALTER TABLE";
-
-			return command;
-		}
-
-		public void CreateWordTable()
-		{
-			cmd.CommandText = GetCreateWordTableCommand();
+			cmd.CommandText = command;
 			cmd.ExecuteNonQuery();
-		}
 
-		public void CreateLetterTable(List<char> alphabet, string table, string wordTable)
-		{
-			cmd.CommandText = GetCreateLetterTableCommand(alphabet, table, wordTable);
+			cmd.CommandText = GetUpdateScoreCommand(stateWordTable);
 			cmd.ExecuteNonQuery();
-		}
 
-		public void ProcessWordTable(string table)
-		{
-			cmd.CommandText = GetProcessWordTableCommand(table);
-			cmd.ExecuteNonQuery();
+			cmd.CommandText = GetReturnsCommand(stateWordTable);
+			SqlDataReader reader = cmd.ExecuteReader();
+			reader.Read();
+			string word = reader.GetString(0);
+			int score = reader.GetInt32(1);
+			reader.Close();
+			return (word, score);
 		}
 
 		/// <summary>
