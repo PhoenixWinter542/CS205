@@ -39,5 +39,24 @@ namespace WordleTests
 			printWeights(best.weights.posWeights);
 			Console.WriteLine("avgTries:\t" + best.avgTries);
 		}
+		[TestMethod]
+		public void ParamHillTuningTest()
+		{
+			double percent = 0.1;
+			int maxPasses = 5;
+			int sigFig = 1;
+			ParamTuning param = new ParamTuning(percent);
+			(Weights weights, double avgTries) best = param.RunHillSearch(maxPasses, sigFig);
+			Console.WriteLine(
+				"Ran on " + percent + "% of words\n" +
+				"Max " + maxPasses + " Passes\n" +
+				"Rounding to  " + sigFig + " decimal digits\n"
+				);
+			Console.WriteLine("incWeights");
+			printWeights(best.weights.incWeights);
+			Console.WriteLine("posWeights");
+			printWeights(best.weights.posWeights);
+			Console.WriteLine("avgTries:\t" + best.avgTries);
+		}
 	}
 }
