@@ -4,6 +4,7 @@ using System.Data;
 using System.Data.SqlClient;
 using System.Diagnostics;
 using System.Linq;
+using System.Configuration;
 using System.Text;
 using System.Threading.Tasks;
 
@@ -11,6 +12,9 @@ namespace Word_Analyzer
 {
 	public static class WordleProcessor
 	{
+		private static string tableString = ConfigurationManager.ConnectionStrings["table"].ConnectionString;
+		private static string connection = ConfigurationManager.ConnectionStrings["connection"].ConnectionString;
+
 		public static List<(char, byte)> Process(string guess, string answer)
 		{
 			List<(char letter, byte state)> results = new List<(char letter, byte state)>();
@@ -49,7 +53,13 @@ namespace Word_Analyzer
 
 		public static List<string> InverseWordleSQL(string answer)
 		{
-			Analyzer an = new Analyzer(5);
+			return InverseWordleSQL(answer, new Analyzer(5));
+		}
+
+		public static List<string> InverseWordleSQL(string answer, Analyzer an)
+		{
+			Debug.WriteLine("Answer:\t" + answer);
+			an.Reset();
 			string result = "saint";
 			List<string> guesses = new List<string> { result };
 
@@ -60,13 +70,17 @@ namespace Word_Analyzer
 				Debug.WriteLine(result);
 			}
 
-			an.Dispose();
 			return guesses;
+		}
+
+		public static string GetRandWord()
+		{
+			return GetRandWord(connection);
 		}
 
 		public static string GetRandWord(string connectionString)
 		{
-			SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM english.dbo.words;", connectionString);
+			SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM " + tableString + ";", connectionString);
 			DataSet set = new DataSet();
 			adapter.Fill(set);
 			DataTable words = set.Tables[0];
@@ -76,9 +90,14 @@ namespace Word_Analyzer
 			return words.Rows[pos][0].ToString();
 		}
 
+		public static string GetWordAt(int run, int totalRuns)
+		{
+			return GetWordAt(run, totalRuns, connection);
+		}
+
 		public static string GetWordAt(int run, int totalRuns, string connectionString)
 		{
-			SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM english.dbo.words;", connectionString);
+			SqlDataAdapter adapter = new SqlDataAdapter("SELECT * FROM " + tableString + ";", connectionString);
 			DataSet set = new DataSet();
 			adapter.Fill(set);
 			DataTable words = set.Tables[0];

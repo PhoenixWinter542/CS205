@@ -65,9 +65,12 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Analyzer.cs" />
+    <Compile Include="BayesianSearch.cs" />
+    <Compile Include="ParamTuning.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Search.cs" />
+    <Compile Include="RunPercent.cs" />
     <Compile Include="WordleProcessor.cs" />
   </ItemGroup>
   <ItemGroup>

@@ -38,47 +38,47 @@ namespace WordleTests
 			Assert.AreEqual(14470, an.RemBanned());
 			an.Dispose();
 		}
-		
+
 		[TestMethod]
 		public void UpdateLettersTest()
 		{
 			Analyzer an = new Analyzer(5);
-			
+
 			an.UpdateLetters(guess1);
-			List<char> bannedLetters = new List<char>				{ 's', 'i', 'n' };
-			List<char> reqLetters = new List<char>					{ 'a', 't' };
+			List<char> bannedLetters = new List<char> { 's', 'i', 'n' };
+			List<char> reqLetters = new List<char> { 'a', 't' };
 			List<(char, byte)> bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4) };
-			List<(char, byte)> reqPos = new List<(char, byte)>	{ };
+			List<(char, byte)> reqPos = new List<(char, byte)> { };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqPos, reqPos));
 
 			an.UpdateLetters(guess2);
-			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p' };
-			reqLetters = new List<char>			{ 'a', 't', 'e' };
+			bannedLetters = new List<char> { 's', 'i', 'n', 'r', 'p' };
+			reqLetters = new List<char> { 'a', 't', 'e' };
 			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, byte)>	{ ('a', 2) };
+			reqPos = new List<(char, byte)> { ('a', 2) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqPos, reqPos));
 
 			an.UpdateLetters(guess3);
-			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p', 'd', 'h' };
-			reqLetters = new List<char>			{ 'a', 't', 'e' };
+			bannedLetters = new List<char> { 's', 'i', 'n', 'r', 'p', 'd', 'h' };
+			reqLetters = new List<char> { 'a', 't', 'e' };
 			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, byte)>	{ ('a', 2), ('e', 1), ('t', 3) };
+			reqPos = new List<(char, byte)> { ('a', 2), ('e', 1), ('t', 3) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqPos, reqPos));
 
 			an.UpdateLetters(guess4);
-			bannedLetters = new List<char>		{ 's', 'i', 'n', 'r', 'p', 'd', 'h' };
-			reqLetters = new List<char>			{ 'a', 't', 'e', 'm', 'y' };
+			bannedLetters = new List<char> { 's', 'i', 'n', 'r', 'p', 'd', 'h' };
+			reqLetters = new List<char> { 'a', 't', 'e', 'm', 'y' };
 			bannedPos = new List<(char, byte)> { ('a', 1), ('t', 4), ('t', 0), ('e', 4) };
-			reqPos = new List<(char, byte)>	{ ('a', 2), ('e', 1), ('t', 3), ('m', 0), ('y', 4) };
+			reqPos = new List<(char, byte)> { ('a', 2), ('e', 1), ('t', 3), ('m', 0), ('y', 4) };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedLetters, bannedLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.reqLetters, reqLetters));
 			Assert.IsTrue(Enumerable.SequenceEqual(an.bannedPos, bannedPos));
@@ -88,7 +88,7 @@ namespace WordleTests
 			List<(char, byte)> feedback = new List<(char, byte)> { ('s', 0), ('a', 1), ('r', 0), ('e', 1), ('e', 1) };
 			an = new Analyzer(5);
 			an.UpdateLetters(feedback);
-			bannedLetters = new List<char> { 's', 'r',};
+			bannedLetters = new List<char> { 's', 'r', };
 			reqLetters = new List<char> { 'a', 'e' };
 			bannedPos = new List<(char, byte)> { ('a', 1), ('e', 3), ('e', 4) };
 			reqPos = new List<(char, byte)> { };
@@ -105,7 +105,7 @@ namespace WordleTests
 			Analyzer an = new Analyzer(5);
 
 			an.bannedLetters = new List<char> { 's', 'i', 'n' };
-			List <char> compare = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
+			List<char> compare = new List<char> { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'j', 'k', 'l', 'm', 'o', 'p', 'q', 'r', 't', 'u', 'v', 'w', 'x', 'y', 'z' };
 			Assert.IsTrue(Enumerable.SequenceEqual(an.GetAllowed(), compare));
 
 			an.bannedLetters = new List<char> { 's', 'i', 'n', 'r', 'p' };
@@ -182,7 +182,7 @@ namespace WordleTests
 		{
 			Analyzer an = new Analyzer(5);
 			List<List<(char letter, int num)>> results = an.ComputePosAndSort(new List<char> { 'a', 'e' });
-			
+
 			//e
 			Assert.AreEqual(421, results[0][1].num);
 			Assert.AreEqual(1971, results[1][1].num);
@@ -205,8 +205,8 @@ namespace WordleTests
 			Analyzer an = new Analyzer(5);
 			List<(char letter, int num)> results = an.ComputeInc(new List<char> { 'a', 'e' });
 
-			Assert.AreEqual(7248, results[0].num);	//a
-			Assert.AreEqual(6730, results[1].num);	//e
+			Assert.AreEqual(7248, results[0].num);  //a
+			Assert.AreEqual(6730, results[1].num);  //e
 			an.Dispose();
 		}
 
@@ -258,7 +258,7 @@ namespace WordleTests
 				"\n\t(3, 1, 1)," +
 				"\n\t(4, 1, 1);\n";
 
-			Assert.AreEqual(expected, analyzer.GetAddWeightsCommand(new List<double>{ 1, 1, 1, 1, 1}, new List<double> { 1, 1, 1, 1, 1 }));
+			Assert.AreEqual(expected, analyzer.GetCreateWeightsTableCommand() + analyzer.GetUpdateWeightsTableCommand(new List<double> { 1, 1, 1, 1, 1 }, new List<double> { 1, 1, 1, 1, 1 }));
 			analyzer.Dispose();
 		}
 
@@ -279,7 +279,7 @@ namespace WordleTests
 				"\nSELECT words" +
 				"\nFROM english.dbo.words;\n";
 
-			Assert.AreEqual(expected, analyzer.GetWordTableCommand("editWordTable"));
+			Assert.AreEqual(expected, analyzer.GetCreateWordTableCommand("editWordTable") + analyzer.GetResetWordTableCommand("editWordTable"));
 			analyzer.Dispose();
 		}
 
@@ -322,7 +322,7 @@ namespace WordleTests
 				"\n\t('z')) AS a(letter)" +
 				"\n;\n";
 
-			Assert.AreEqual(expected, analyzer.GetAlphabetCommand(alphabet));
+			Assert.AreEqual(expected, analyzer.GetCreateAlphabetCommand() + analyzer.GetResetAlphabetCommand());
 			analyzer.Dispose();
 		}
 
@@ -363,7 +363,7 @@ namespace WordleTests
 			string expected =
 				//process words
 				"\nDROP FUNCTION IF EXISTS editProcessWord;\n" +
-				
+
 				"\nGO" +
 				"\nCREATE FUNCTION editProcessWord(@char0 varchar(1), @char1 varchar(1), @char2 varchar(1), @char3 varchar(1), @char4 varchar(1))" +
 				"\nRETURNS TABLE" +

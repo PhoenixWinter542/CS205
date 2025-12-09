@@ -11,6 +11,7 @@ using System.Text.RegularExpressions;
 using System.CodeDom.Compiler;
 using System.Data.Common;
 using System.Net.Mail;
+using System.Collections.ObjectModel;
 
 /*
 		 * SQL calculation steps
@@ -130,6 +131,7 @@ namespace Word_Analyzer
 		SqlCommand cmd;
 		byte length;
 		Weights weights;
+		public string bigQuery = "";
 
 		public readonly List<char> fullAlphabet;
 		public List<char> bannedLetters;
@@ -141,10 +143,22 @@ namespace Word_Analyzer
 		public SqlDataReader getReader(string query)
 		{
 			cmd.CommandText = query;
+			bigQuery += cmd.CommandText;
 			return cmd.ExecuteReader();
 		}
 
+
+		private void ClearLetterReqs()
+		{
+			bannedLetters.Clear();
+			bannedPos.Clear();
+			reqPos.Clear();
+			reqLetters.Clear();
+		}
+
 		public Analyzer(byte length) : this(length, ConfigurationManager.ConnectionStrings["connection"].ConnectionString) { }
+
+		public Analyzer(byte length, Weights weight) : this(length, ConfigurationManager.ConnectionStrings["connection"].ConnectionString, ConfigurationManager.ConnectionStrings["table"].ConnectionString, ConfigurationManager.ConnectionStrings["column"].ConnectionString, ConfigurationManager.ConnectionStrings["tmpTablesRootName"].ConnectionString, weight) { }
 
 		public Analyzer(byte length, string connection) : this(length, connection, ConfigurationManager.ConnectionStrings["table"].ConnectionString, ConfigurationManager.ConnectionStrings["column"].ConnectionString) { }
 		
@@ -213,21 +227,26 @@ namespace Word_Analyzer
 			}
 			this.weights = weights;
 
-			cmd.CommandText = GetStartBatch(weights.incWeights, weights.posWeights, stateWordTable, fullAlphabet);
+			cmd.CommandText = GetDropsCommand(stateWordTable) + GetStartBatch(weights.incWeights, weights.posWeights, stateWordTable, fullAlphabet);
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 
 			cmd.CommandText = GetProcessLettersCommand(stateWordTable);
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 
 			cmd.CommandText = GetProcessWordCommand();
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 
 			cmd.CommandText = GetProcessScoresCommand(stateWordTable);
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 		}
 
 		private int GetIntFromCommand(int pos)
 		{
+			bigQuery += cmd.CommandText;
 			SqlDataReader reader = cmd.ExecuteReader();
 			reader.Read();
 			int result = reader.GetInt32(pos);
@@ -235,8 +254,21 @@ namespace Word_Analyzer
 			return result;
 		}
 
+		public void ChangeWeights(Weights weights)
+		{
+			this.weights = weights;
+		}
+
 
 		//Sql Command Generators
+
+		public string TruncateIfExists(string table)
+		{
+			return "\nIF OBJECT_ID('" + table + "', 'U') IS NOT NULL" +
+				"\nBEGIN" +
+				"\n\tTRUNCATE TABLE " + table +
+				"\nEND;\n";
+		}
 
 		public string GetProcessLettersCommand(string wordTable)
 		{
@@ -363,11 +395,17 @@ namespace Word_Analyzer
 			return command;
 		}
 
-		public string GetAddWeightsCommand(List<double>inc, List<double>pos)
+		public string GetCreateWeightsTableCommand()
+		{
+			return
+				"\nDROP TABLE IF EXISTS " + rootName + "Weights;" +
+				"\nCREATE TABLE " + rootName + "Weights(pos int, incWeights float(53), posWeights float(53));\n";
+		}
+
+		public string GetUpdateWeightsTableCommand(List<double>inc, List<double>pos)
 		{
 			string command =
-				"\nDROP TABLE IF EXISTS " + rootName + "Weights;" +
-				"\nCREATE TABLE " + rootName + "Weights(pos int, incWeights float(53), posWeights float(53));\n" +
+				TruncateIfExists(rootName + "Weights") +
 
 				"\nINSERT INTO " + rootName + "Weights" +
 				"\nVALUES";
@@ -387,15 +425,22 @@ namespace Word_Analyzer
 			return command;
 		}
 
-		public string GetWordTableCommand(string wordTable)
+		public string GetCreateWordTableCommand(string wordTable)
 		{
 			string command =
 				"\nDROP TABLE IF EXISTS " + wordTable + ";" +
 				"\nCREATE TABLE " + wordTable + "(" +
 				"\n\tWord varchar(" + length + ")," +
-				"\n\tScore int NOT NULL DEFAULT(0)" +
-				"\n);\n" +
+				"\n\tScore int NOT NULL DEFAULT(0)," +
+				"\n\tPRIMARY KEY(Word) WITH (IGNORE_DUP_KEY = ON)" +
+				"\n);\n";
 
+			return command;
+		}
+
+			public string GetResetWordTableCommand(string wordTable)
+		{
+			string command =
 				"\nINSERT INTO " + wordTable + "(word)" +
 				"\nSELECT " + columnString + "" +
 				"\nFROM " + tableString + ";\n";
@@ -403,14 +448,26 @@ namespace Word_Analyzer
 			return command;
 		}
 
-		public string GetAlphabetCommand(List<char> alphabet)
+		public string GetCreateAlphabetCommand()
 		{
 			string command =
 				"\nDROP TABLE IF EXISTS " + rootName + "Alphabet;" +
-				"\nSELECT letter INTO " + rootName + "Alphabet" +
+				"\nCREATE TABLE " + rootName + "Alphabet(" +
+				"\n\tletter varchar(1)," +
+				"\n\tPRIMARY KEY (letter) WITH (IGNORE_DUP_KEY = ON)" +
+				"\n);\n";
+
+			return command;
+		}
+
+		public string GetResetAlphabetCommand()
+		{
+			string command =
+				"\nINSERT INTO " + rootName + "Alphabet" +
+				"\nSELECT letter" +
 				"\nFROM (Values";
 			bool first = true;
-			foreach(char letter in alphabet)
+			foreach(char letter in fullAlphabet)
 			{
 				if (first)
 					first = false;
@@ -444,13 +501,24 @@ namespace Word_Analyzer
 
 			return command;
 		}
+
 		public string GetStartBatch(List<double> inc, List<double> pos, string wordTable, List<char> alphabet)
 		{
 			return
-				GetDropsCommand(stateWordTable) +
-				GetAddWeightsCommand(weights.incWeights, weights.posWeights) +
-				GetWordTableCommand(stateWordTable) +
-				GetAlphabetCommand(alphabet);
+				GetCreateWeightsTableCommand() +
+				GetCreateAlphabetCommand() +
+				GetCreateWordTableCommand(stateWordTable) +
+				GetResetAlphabetCommand() +
+				GetUpdateWeightsTableCommand(weights.incWeights, weights.posWeights) +
+				GetResetWordTableCommand(stateWordTable);
+		}
+
+		public string GetBlankSlateCommand()
+		{
+			return
+				GetUpdateWeightsTableCommand(weights.incWeights, weights.posWeights) +
+				GetResetWordTableCommand(stateWordTable) +
+				GetResetAlphabetCommand();
 		}
 
 		private string GetRemReqPosCommand()
@@ -537,6 +605,22 @@ namespace Word_Analyzer
 
 		//General Functions
 
+		public void Reset()
+		{
+			ClearLetterReqs();
+			ResumeConnection();
+			cmd.CommandText = GetBlankSlateCommand();
+			bigQuery += cmd.CommandText;
+			cmd.ExecuteNonQuery();
+			PauseConnection();
+		}
+
+		public void Reset(Weights weight)
+		{
+			ChangeWeights(weight);
+			Reset();
+		}
+
 		public bool StartConnection()
 		{
 			try
@@ -560,6 +644,24 @@ namespace Word_Analyzer
 			if (conn.State == ConnectionState.Closed)
 				return;
 			transaction.Rollback();
+			conn.Close();
+		}
+
+		//Don't deal with transactions
+		public void ResumeConnection()
+		{
+			if (conn.State != ConnectionState.Closed)
+				return;
+			conn.Open();
+			cmd = conn.CreateCommand();
+		}
+
+		public void PauseConnection()
+		{
+			if (conn.State == ConnectionState.Closed)
+				return;
+			if(null != cmd.Transaction)
+				transaction.Commit();
 			conn.Close();
 		}
 
@@ -673,8 +775,11 @@ namespace Word_Analyzer
 		public int RemReqPos()
 		{
 			cmd.CommandText = GetRemReqPosCommand();
-			if(cmd.CommandText != "")
+			if (cmd.CommandText != "")
+			{
+				bigQuery += cmd.CommandText;
 				return cmd.ExecuteNonQuery();
+			}
 			else
 				return 0;
 		}
@@ -686,7 +791,10 @@ namespace Word_Analyzer
 		{
 			cmd.CommandText = GetRemReqNPosCommand();
 			if (cmd.CommandText != "")
+			{
+				bigQuery += cmd.CommandText;
 				return cmd.ExecuteNonQuery();
+			}
 			else
 				return 0;
 		}
@@ -699,7 +807,10 @@ namespace Word_Analyzer
 		{
 			cmd.CommandText = GetRemBannedCommand();
 			if (cmd.CommandText != "")
+			{
+				bigQuery += cmd.CommandText;
 				return cmd.ExecuteNonQuery();
+			}
 			else
 				return 0;
 		}
@@ -712,7 +823,10 @@ namespace Word_Analyzer
 		{
 			cmd.CommandText = GetRemInvalPosCommand();
 			if (cmd.CommandText != "")
+			{
+				bigQuery += cmd.CommandText;
 				return cmd.ExecuteNonQuery();
+			}
 			else
 				return 0;
 		}
@@ -768,6 +882,12 @@ namespace Word_Analyzer
 			return results;
 		}
 
+		public int GetWordCount()
+		{
+			cmd.CommandText = "SELECT  COUNT(*) FROM " + tableString + ";";
+			return GetIntFromCommand(0);
+		}
+
 		/// <summary>
 		/// 0 - char not in word	|	1 - char in word, not in position	|	2 - char in word, in correct position
 		/// </summary>
@@ -792,18 +912,25 @@ namespace Word_Analyzer
 			//Remove words with letters in invalid positions
 			command += GetRemInvalPosCommand();
 
+			ResumeConnection();
 			cmd.CommandText = command;
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 
 			cmd.CommandText = GetUpdateScoreCommand(stateWordTable);
+			bigQuery += cmd.CommandText;
 			cmd.ExecuteNonQuery();
 
 			cmd.CommandText = GetReturnsCommand(stateWordTable);
+			bigQuery += cmd.CommandText;
 			SqlDataReader reader = cmd.ExecuteReader();
 			reader.Read();
 			string word = reader.GetString(0);
 			int score = reader.GetInt32(1);
 			reader.Close();
+
+			PauseConnection();
+
 			return (word, score);
 		}
 
