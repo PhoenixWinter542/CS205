@@ -40,13 +40,13 @@ namespace WordleTests
 			Console.WriteLine("avgTries:\t" + best.avgTries);
 		}
 		[TestMethod]
-		public void ParamHillTuningTest()
+		public void ParamAnnealingTuningTest()
 		{
-			double percent = 0.1;
-			int maxPasses = 5;
-			int sigFig = 1;
+			double percent = 1;
+			int maxPasses = 10;
+			int sigFig = 10;
 			ParamTuning param = new ParamTuning(percent);
-			(Weights weights, double avgTries) best = param.RunHillSearch(maxPasses, sigFig);
+			(Weights weights, double avgTries) best = param.RunAnnealingSearch(maxPasses, sigFig);
 			Console.WriteLine(
 				"Ran on " + percent + "% of words\n" +
 				"Max " + maxPasses + " Passes\n" +

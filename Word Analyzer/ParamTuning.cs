@@ -1,8 +1,12 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.ComponentModel;
+using System.IO;
+using System.Configuration;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics.SymbolStore;
 
 namespace Word_Analyzer
 {
@@ -12,7 +16,8 @@ namespace Word_Analyzer
 		private Random rand = new Random(DateTime.Now.Millisecond);
 		double percent;
 		int sigFig;
-		Analyzer an;
+		string log = "";
+		double scale;
 		RunPercent run;
 		
 		private Weights createWeight()
@@ -39,11 +44,12 @@ namespace Word_Analyzer
 		public ParamTuning()
 		{
 			percent = 1;
+			scale = 100;
 			sigFig = 1;
 			best.weights = new Weights()
 			{
-				incWeights = new List<double>() { 0.5, 0.5, 0.5, 0.5, 0.5 },
-				posWeights = new List<double>() { 0.5, 0.5, 0.5, 0.5, 0.5 },
+				incWeights = new List<double>() { scale / 2, scale / 2, scale / 2, scale / 2, scale / 2 },
+				posWeights = new List<double>() { scale / 2, scale / 2, scale / 2, scale / 2, scale / 2 },
 				baseIncWeights = new List<double>() { -0.5, -0.5, -0.5, -0.5, -0.5 },
 				basePosWeights = new List<double>() { -0.5, -0.5, -0.5, -0.5, -0.5 }
 			};
@@ -94,87 +100,206 @@ namespace Word_Analyzer
 			return converted;
 		}
 
-		private (double, double) RunHillWeight(List<List<double>> weights, int row, int col, double startWeight, double startTries)
+		private double GetNeighborWeight(bool movingRight, double startWeight, double move)
+		{
+			move *= rand.NextDouble();	//moves randomly within range
+			if(movingRight)
+				return startWeight + move;
+			else
+				return startWeight - move;
+		}
+
+		private List<List<double>> GetBranchScore(List<List<double>> weights, double startWeight, double move, bool movingRight, int row, int col, ref double newAvg, ref (double, double) result)
+		{
+			List<List<double>> newWeights = weights;
+			newWeights[row][col] = GetNeighborWeight(true, startWeight, move);
+			newAvg = run.RunInverseSQLOnPercent(percent, ListToStruct(newWeights));
+			result = (newWeights[row][col], newAvg);
+			return newWeights;
+		}
+
+		private (double, double) RunAnnealingWeight(List<List<double>> weights, int row, int col, double startWeight, double startTries, int depth, ref bool better, int temp)
 		{
 			double curWeight = weights[row][col];
 			double move;
 			if (curWeight < startWeight)
-				move = (startWeight - curWeight) / 2;
+				move = startWeight;
 			else if (curWeight > startWeight)
-				move = (curWeight - startWeight) / 2;
+				move = (scale - startWeight);
 			else
-				move = Math.Min(1 - startWeight, startWeight) / 2;
+				move = Math.Min(scale - startWeight, startWeight);  //Move = distance to the closest side
 
-			//Left
-			List<List<double>> leftWeights = weights;
-			leftWeights[row][col] = curWeight - move;
-			double avgLeft = run.RunInverseSQLOnPercent(percent, ListToStruct(leftWeights));
+			//move = move / Math.Pow(2, depth);   //reduce movement with recursion
 
-			//Right
-			List<List<double>> rightWeights = weights;
-			rightWeights[row][col] = curWeight + move;
-			double avgRight = run.RunInverseSQLOnPercent(percent, ListToStruct(rightWeights));
+			(double, double avgTries) result = (-1, -1);
 
-			if(Math.Round(startTries, sigFig) <= Math.Round(avgLeft, sigFig) && Math.Round(startTries, sigFig) <= Math.Round(avgRight, sigFig))
+			double newAvg = -1;
+
+			if (curWeight < startWeight)   //came from left
 			{
-				return (double.MaxValue, double.MaxValue);	//branch attemtps were worse than base, don't care about their values
+				//Left
+				List<List<double>> newWeights = GetBranchScore(weights, startWeight, move, false, row, col, ref newAvg, ref result);
+
+				if (startTries < newAvg)
+					return RunAnnealingWeight(newWeights, row, col, startWeight, newAvg, depth + 1, ref better, Math.Max(temp - 1, 0));
 			}
-			if (Math.Round(avgLeft, sigFig) < Math.Round(avgRight, sigFig))	//branch left
+			else if(curWeight > startWeight) //came from right
 			{
-				if(curWeight < startWeight)	//came from left
-					startWeight = curWeight;
-				return RunHillWeight(leftWeights, row, col, startWeight, startTries);
+				//Right
+				List<List<double>> newWeights = GetBranchScore(weights, startWeight, move, false, row, col, ref newAvg, ref result);
+
+				if (startTries < newAvg)
+					return RunAnnealingWeight(newWeights, row, col, startWeight, newAvg, depth + 1, ref better, Math.Max(temp - 1, 0));
 			}
-			else if (Math.Round(avgLeft, sigFig) > Math.Round(avgRight, sigFig))	//branch right
+			else //just starting
 			{
-				if (curWeight > startWeight)	//came from right
-					startWeight = curWeight;
-				return RunHillWeight(rightWeights, row, col, startWeight, startTries);
+				//Left
+				double leftAvg = -1;
+				List<List<double>> leftWeights = GetBranchScore(weights, startWeight, move, false, row, col, ref leftAvg, ref result);
+
+				if (startTries < newAvg)
+					return RunAnnealingWeight(leftWeights, row, col, startWeight, newAvg, depth + 1, ref better, Math.Max(temp - 1, 0));
+
+				//Right
+				double rightAvg = -1;
+				List<List<double>> rightWeights = GetBranchScore(weights, startWeight, move, false, row, col, ref rightAvg, ref result);
+
+				List<List<double>> newWeights;
+				if (leftAvg < rightAvg)
+				{
+					newWeights = leftWeights;
+				}
+				else
+				{
+					newWeights = rightWeights;
+				}
+
+				if (startTries < newAvg)
+					return RunAnnealingWeight(newWeights, row, col, startWeight, newAvg, depth + 1, ref better, Math.Max(temp - 1, 0));
 			}
-			else	//Stop branching
+
+			//Getting here means the new avgTries was worse
+			bool takeWorse = false;
+			(double, double) tmpResult = AnnealChoice((weights[row][col], startTries), result, ref takeWorse, temp);
+			if (takeWorse)
 			{
-				return (leftWeights[row][col], avgLeft);
+				List<List<double>> newWeights = GetBranchScore(weights, startWeight, move, false, row, col, ref newAvg, ref result);
+
+				return RunAnnealingWeight(newWeights, row, col, startWeight, newAvg, depth + 1, ref better, Math.Max(temp - 1, 0));
+			}
+			else
+			{
+				return (startWeight, startTries);
 			}
 		}
 
-		public (Weights, double) RunHillSearch(int maxPasses, int sigFig)
+		public (Weights, double) RunAnnealingSearch(int maxPasses, int sigFig)
 		{
 			int tmp = this.sigFig;
 			this.sigFig = sigFig;
-			(Weights, double) results = RunHillSearch(maxPasses);
+			(Weights, double) results = RunAnnealingSearch(maxPasses);
 			this.sigFig = tmp;
 			return results;
 		}
+		private string printWeights(List<double> weights)
+		{
+			string log = "\n\t";
+			bool first = true;
+			foreach (double weight in weights)
+			{
+				if (first)
+					first = false;
+				else
+					log += ",";
+				log += " " + weight;
+			}
+			log += "\n";
+			return log;
+		}
 
+		private string writeLog(string passLog, DateTime start, int pass, int maxPasses)
+		{
+			TimeSpan runtime = DateTime.Now - start;
+			string begin =
+				"\n\n\n------------------------------------------------------------------------------------------------\n\n\n" +
+				"Pass " + (pass + 1) + "\n" +
+				"Duration: " + runtime.Hours + " hours  " + runtime.Minutes + " minutes  " + runtime.Seconds + " seconds\n" +
+				"Run on " + percent + "% of words\n" +
+				"Max " + maxPasses + " Passes\n" +
+				"Rounding to  " + sigFig + " decimal digits\n";
 
-		public (Weights, double) RunHillSearch(int maxPasses)
+			File.WriteAllText(@ConfigurationManager.ConnectionStrings["logFile"].ToString(),  begin + passLog + log);
+
+			return begin + passLog;
+		}
+
+		public bool TakeNew(double change, int temp)
+		{
+			change = Math.Abs(change) / scale;	//change as a percent of the range
+			double beatToTakeNew = (double)Math.Pow(change, (double)temp);	//change is always 0 <= change < 1, higher values of temp make it easer to take the new (worse) value
+			double roll = rand.NextDouble();
+			return roll > beatToTakeNew;
+		}
+
+		public (double, double) AnnealChoice((double weight, double score) oldWeight, (double weight, double score) newWeight, ref bool better, int temp)	//only called when new choice is not better
+		{
+			if (TakeNew(oldWeight.score - newWeight.score, temp))
+			{
+				better = true;
+				return newWeight;
+			}
+			else
+			{
+				return oldWeight;
+			}
+		}
+
+		public (Weights, double) RunAnnealingSearch(int maxPasses)
 		{
 			double avgTries = run.RunInverseSQLOnPercent(percent, best.weights);
 			List<List<double>> weightsAsList = StructToList(best.weights);
 			for (int pass = 0; pass < maxPasses; pass++)
 			{
+				DateTime start = DateTime.Now;
+				string passLog = "";
+
 				bool better = false;
 				for (int row = 0;  row < weightsAsList.Count; row++)
 				{
+					if(0 == row)
+					{
+						passLog += "\nincWeights\n\n\t";
+					}
+					else if (1 == row)
+					{
+						passLog += "\n\n\nposWeights\n\n\t";
+					}
 					for (int col = 0; col < weightsAsList[row].Count; col++)
 					{
 						double weight = weightsAsList[row][col];
 						if (weight < 0)	//account for not having implemented the baseWeights
 							break;
-						(double weight, double avgTries) result = RunHillWeight(weightsAsList, row, col, weight, avgTries);
+						int temp = (maxPasses - pass) / 2;
+						bool betterCol = false;
+						(double weight, double avgTries) result = RunAnnealingWeight(weightsAsList, row, col, weight, avgTries, pass + 1, ref betterCol, temp);
 
-						if(result.avgTries < avgTries)
+						if(betterCol)
 						{
 							better = true;
 							avgTries = result.avgTries;
 							weightsAsList[row][col] = result.weight;
 						}
+						if (0 != col)
+							passLog += ",";
+						passLog += " " + weightsAsList[row][col];
+						writeLog(passLog, start, pass, maxPasses);
 					}
 				}
+				log = writeLog(passLog, start, pass, maxPasses) + log;
 				if (!better)	//No improvement, call it a day
 					break;
 			}
-
+			
 			return (ListToStruct(weightsAsList), avgTries);
 		}
 
