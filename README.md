@@ -7,11 +7,13 @@ You can find lists of english words here:
 
 Once the database is running you have to edit the WordleBot.exe.config file to point the program to the word column of your database.  
  ``` xml
- <connectionStrings>
-	<add name="connection" connectionString="server=localhost;trusted_connection=Yes"/>
-	<add name="table" connectionString="english.dbo.scrabble"/>
-	<add name="column" connectionString="words"/>
-</connectionStrings>
+	<connectionStrings>
+		<add name="connection" connectionString="server=DESKTOP-SV6S892;trusted_connection=Yes"/>
+		<add name="table" connectionString="english.dbo.words"/>
+		<add name="column" connectionString="words"/>
+		<add name="tmpTablesRootName" connectionString="edit"/>
+		<add name ="logFile" connectionString="D:\phoen\Documents\AI\CS205\log.txt"/>
+	</connectionStrings>
 ```
 ## Running
 Start by typing out your first guess. \
